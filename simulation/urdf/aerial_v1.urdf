@@ -1,0 +1,634 @@
+<?xml version="1.0"?>
+<!--
+  ============================================================================
+  Sentinel Swarm — Aerial Node v1 URDF
+  Hardware: ESP32-S31 FC + Raspberry Pi 5 + MPU6050 + USB Webcam + LoRa
+  Frame:    ~250mm quad, X-configuration
+  ============================================================================
+
+  Frame geometry (top view, X config):
+            Front
+         M1(-+)  M2(+-)
+            \  /
+             \/
+             /\
+            /  \
+         M3(+-)  M4(-+)
+            Rear
+
+  M1 = Front-Left  (CCW prop, negative spin)
+  M2 = Front-Right (CW prop,  positive spin)
+  M3 = Rear-Left   (CW prop,  positive spin)
+  M4 = Rear-Right  (CCW prop, negative spin)
+
+  Load into Gazebo:
+    ros2 launch sentinel_sim aerial_v1_spawn.launch.py
+
+  Visualize in RViz2:
+    ros2 run robot_state_publisher robot_state_publisher --ros-args
+      -p robot_description:=$(xacro urdf/aerial_v1.urdf)
+-->
+
+<robot name="sentinel_aerial_v1">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       MATERIALS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <material name="carbon_fiber">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="motor_orange">
+    <color rgba="0.9 0.4 0.0 1.0"/>
+  </material>
+  <material name="prop_translucent">
+    <color rgba="0.8 0.8 0.8 0.4"/>
+  </material>
+  <material name="pcb_green">
+    <color rgba="0.1 0.5 0.1 1.0"/>
+  </material>
+  <material name="esp32_blue">
+    <color rgba="0.0 0.3 0.8 1.0"/>
+  </material>
+  <material name="camera_black">
+    <color rgba="0.05 0.05 0.05 1.0"/>
+  </material>
+  <material name="lora_red">
+    <color rgba="0.8 0.1 0.1 1.0"/>
+  </material>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       BASE LINK — Central frame body (carbon fiber plate)
+       Dimensions: 140mm x 140mm x 8mm
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="base_link">
+    <inertial>
+      <!-- Total frame mass ~320g (body + electronics, excl. battery) -->
+      <mass value="0.320"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia
+        ixx="0.003" ixy="0.0" ixz="0.0"
+        iyy="0.003" iyz="0.0"
+        izz="0.005"/>
+    </inertial>
+    <visual>
+      <!-- Main carbon plate -->
+      <origin xyz="0 0 0" rpy="0 0 0.785398"/>
+      <geometry>
+        <box size="0.140 0.140 0.008"/>
+      </geometry>
+      <material name="carbon_fiber"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0.785398"/>
+      <geometry>
+        <box size="0.140 0.140 0.008"/>
+      </geometry>
+    </collision>
+  </link>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       ARMS — 4x carbon fiber tubes (125mm long, 10mm diameter)
+       Arm length: 125mm from center → motor mount
+  ═══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Arm 1: Front-Left (45° from +X axis) -->
+  <link name="arm_fl">
+    <inertial>
+      <mass value="0.020"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0"
+               iyy="0.00005" iyz="0" izz="0.00005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+      <material name="carbon_fiber"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_arm_fl" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_fl"/>
+    <origin xyz="0.0625 0.0625 0" rpy="0 0 0.785398"/>
+  </joint>
+
+  <!-- Arm 2: Front-Right -->
+  <link name="arm_fr">
+    <inertial>
+      <mass value="0.020"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0"
+               iyy="0.00005" iyz="0" izz="0.00005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+      <material name="carbon_fiber"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_arm_fr" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_fr"/>
+    <origin xyz="0.0625 -0.0625 0" rpy="0 0 -0.785398"/>
+  </joint>
+
+  <!-- Arm 3: Rear-Left -->
+  <link name="arm_rl">
+    <inertial>
+      <mass value="0.020"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0"
+               iyy="0.00005" iyz="0" izz="0.00005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+      <material name="carbon_fiber"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_arm_rl" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_rl"/>
+    <origin xyz="-0.0625 0.0625 0" rpy="0 0 2.356194"/>
+  </joint>
+
+  <!-- Arm 4: Rear-Right -->
+  <link name="arm_rr">
+    <inertial>
+      <mass value="0.020"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0"
+               iyy="0.00005" iyz="0" izz="0.00005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+      <material name="carbon_fiber"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.005" length="0.125"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_arm_rr" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_rr"/>
+    <origin xyz="-0.0625 -0.0625 0" rpy="0 0 -2.356194"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       MOTORS — 2306 2450KV Brushless (x4)
+       Modelled as small cylinders on each arm tip
+  ═══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Motor 1: Front-Left (CCW) -->
+  <link name="motor_fl">
+    <inertial>
+      <mass value="0.030"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000002" ixy="0" ixz="0"
+               iyy="0.000002" iyz="0" izz="0.000003"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+      <material name="motor_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_motor_fl" type="fixed">
+    <parent link="base_link"/>
+    <child  link="motor_fl"/>
+    <origin xyz="0.125 0.125 0.010" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Motor 2: Front-Right (CW) -->
+  <link name="motor_fr">
+    <inertial>
+      <mass value="0.030"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000002" ixy="0" ixz="0"
+               iyy="0.000002" iyz="0" izz="0.000003"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+      <material name="motor_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_motor_fr" type="fixed">
+    <parent link="base_link"/>
+    <child  link="motor_fr"/>
+    <origin xyz="0.125 -0.125 0.010" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Motor 3: Rear-Left (CW) -->
+  <link name="motor_rl">
+    <inertial>
+      <mass value="0.030"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000002" ixy="0" ixz="0"
+               iyy="0.000002" iyz="0" izz="0.000003"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+      <material name="motor_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_motor_rl" type="fixed">
+    <parent link="base_link"/>
+    <child  link="motor_rl"/>
+    <origin xyz="-0.125 0.125 0.010" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Motor 4: Rear-Right (CCW) -->
+  <link name="motor_rr">
+    <inertial>
+      <mass value="0.030"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000002" ixy="0" ixz="0"
+               iyy="0.000002" iyz="0" izz="0.000003"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+      <material name="motor_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.014" length="0.020"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_motor_rr" type="fixed">
+    <parent link="base_link"/>
+    <child  link="motor_rr"/>
+    <origin xyz="-0.125 -0.125 0.010" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       PROPELLERS — 5045 tri-blade (127mm radius)
+       Modelled as thin flat discs (visual only, no collision for perf)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+
+  <link name="prop_fl">
+    <inertial>
+      <mass value="0.008"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000008" ixy="0" ixz="0"
+               iyy="0.000008" iyz="0" izz="0.000016"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.002" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.064" length="0.003"/></geometry>
+      <material name="prop_translucent"/>
+    </visual>
+  </link>
+  <joint name="joint_prop_fl" type="continuous">
+    <parent link="motor_fl"/>
+    <child  link="prop_fl"/>
+    <origin xyz="0 0 0.012" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="prop_fr">
+    <inertial>
+      <mass value="0.008"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000008" ixy="0" ixz="0"
+               iyy="0.000008" iyz="0" izz="0.000016"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.002" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.064" length="0.003"/></geometry>
+      <material name="prop_translucent"/>
+    </visual>
+  </link>
+  <joint name="joint_prop_fr" type="continuous">
+    <parent link="motor_fr"/>
+    <child  link="prop_fr"/>
+    <origin xyz="0 0 0.012" rpy="0 0 0"/>
+    <axis xyz="0 0 -1"/>
+  </joint>
+
+  <link name="prop_rl">
+    <inertial>
+      <mass value="0.008"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000008" ixy="0" ixz="0"
+               iyy="0.000008" iyz="0" izz="0.000016"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.002" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.064" length="0.003"/></geometry>
+      <material name="prop_translucent"/>
+    </visual>
+  </link>
+  <joint name="joint_prop_rl" type="continuous">
+    <parent link="motor_rl"/>
+    <child  link="prop_rl"/>
+    <origin xyz="0 0 0.012" rpy="0 0 0"/>
+    <axis xyz="0 0 -1"/>
+  </joint>
+
+  <link name="prop_rr">
+    <inertial>
+      <mass value="0.008"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000008" ixy="0" ixz="0"
+               iyy="0.000008" iyz="0" izz="0.000016"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.002" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.064" length="0.003"/></geometry>
+      <material name="prop_translucent"/>
+    </visual>
+  </link>
+  <joint name="joint_prop_rr" type="continuous">
+    <parent link="motor_rr"/>
+    <child  link="prop_rr"/>
+    <origin xyz="0 0 0.012" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       ESP32-S31 FLIGHT CONTROLLER (on top of frame center)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="esp32_fc">
+    <inertial>
+      <mass value="0.010"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0000001" ixy="0" ixz="0"
+               iyy="0.0000001" iyz="0" izz="0.0000002"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.051 0.025 0.003"/></geometry>
+      <material name="esp32_blue"/>
+    </visual>
+  </link>
+  <joint name="joint_esp32" type="fixed">
+    <parent link="base_link"/>
+    <child  link="esp32_fc"/>
+    <origin xyz="0 0 0.012" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       RASPBERRY PI 5 (companion computer, stacked above ESP32)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="rpi5">
+    <inertial>
+      <mass value="0.046"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0000010" ixy="0" ixz="0"
+               iyy="0.0000010" iyz="0" izz="0.0000015"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.085 0.056 0.004"/></geometry>
+      <material name="pcb_green"/>
+    </visual>
+  </link>
+  <joint name="joint_rpi5" type="fixed">
+    <parent link="base_link"/>
+    <child  link="rpi5"/>
+    <origin xyz="0 0 0.022" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       MPU6050 IMU (on ESP32 FC board)
+       — This is the Gazebo IMU sensor link
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="imu_link">
+    <inertial>
+      <mass value="0.002"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000000001" ixy="0" ixz="0"
+               iyy="0.000000001" iyz="0" izz="0.000000001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.004 0.004 0.001"/></geometry>
+      <material name="pcb_green"/>
+    </visual>
+  </link>
+  <joint name="joint_imu" type="fixed">
+    <parent link="esp32_fc"/>
+    <child  link="imu_link"/>
+    <origin xyz="0.005 0 0.002" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       USB WEBCAM (forward-facing, mounted on front edge of frame)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="camera_link">
+    <inertial>
+      <mass value="0.040"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0"
+               iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.030 0.070 0.025"/></geometry>
+      <material name="camera_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.030 0.070 0.025"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_camera" type="fixed">
+    <parent link="base_link"/>
+    <child  link="camera_link"/>
+    <!-- Mounted on the front edge, angled 15° downward for better ground view -->
+    <origin xyz="0.080 0 0.008" rpy="0 0.2618 0"/>
+  </joint>
+
+  <!-- Camera optical frame (ROS convention: Z forward, X right, Y down) -->
+  <link name="camera_optical_link"/>
+  <joint name="joint_camera_optical" type="fixed">
+    <parent link="camera_link"/>
+    <child  link="camera_optical_link"/>
+    <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       LoRa SX1262 MODULE (rear-right of frame, antenna pointing up)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="lora_module">
+    <inertial>
+      <mass value="0.008"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0000001" ixy="0" ixz="0"
+               iyy="0.0000001" iyz="0" izz="0.0000001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.020 0.018 0.004"/></geometry>
+      <material name="lora_red"/>
+    </visual>
+  </link>
+  <joint name="joint_lora" type="fixed">
+    <parent link="base_link"/>
+    <child  link="lora_module"/>
+    <origin xyz="-0.050 -0.050 0.015" rpy="0 0 0"/>
+  </joint>
+
+  <!-- LoRa Antenna (stub dipole, 82mm) -->
+  <link name="lora_antenna">
+    <inertial>
+      <mass value="0.003"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0000001" ixy="0" ixz="0"
+               iyy="0.0000001" iyz="0" izz="0.0000001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.041" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.002" length="0.082"/></geometry>
+      <material name="camera_black"/>
+    </visual>
+  </link>
+  <joint name="joint_lora_antenna" type="fixed">
+    <parent link="lora_module"/>
+    <child  link="lora_antenna"/>
+    <origin xyz="0 0 0.004" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       BATTERY — 4S 3300mAh LiPo (below frame, acts as landing skid)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="battery">
+    <inertial>
+      <!-- 4S 3300mAh LiPo weighs ~290g -->
+      <mass value="0.290"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000300" ixy="0" ixz="0"
+               iyy="0.000050" iyz="0" izz="0.000320"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.140 0.045 0.028"/></geometry>
+      <material name="camera_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.140 0.045 0.028"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_battery" type="fixed">
+    <parent link="base_link"/>
+    <child  link="battery"/>
+    <!-- Slung below the frame as ballast + landing protection -->
+    <origin xyz="0 0 -0.022" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       GAZEBO PLUGINS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- IMU Sensor Plugin (simulates MPU6050 on ESP32-S31) -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>1000</update_rate>
+      <visualize>false</visualize>
+      <topic>/sentinel/imu</topic>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0</mean><stddev>0.0003</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0</mean><stddev>0.0003</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0</mean><stddev>0.0003</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0</mean><stddev>0.017</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0</mean><stddev>0.017</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0</mean><stddev>0.017</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+
+  <!-- RGB Camera Plugin (simulates USB webcam 1080p) -->
+  <gazebo reference="camera_link">
+    <sensor name="webcam" type="camera">
+      <always_on>true</always_on>
+      <update_rate>30</update_rate>
+      <visualize>true</visualize>
+      <topic>/sentinel/camera/image_raw</topic>
+      <camera>
+        <horizontal_fov>1.204</horizontal_fov>  <!-- ~69° FOV, typical USB webcam -->
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.05</near>
+          <far>100</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- Quadrotor Physics Plugin (Gazebo harmonic / Ignition) -->
+  <gazebo>
+    <plugin filename="libgz-sim-multicopter-motor-model-system.so"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <robotNamespace>sentinel</robotNamespace>
+      <motorNumber>0</motorNumber>
+      <jointName>joint_prop_fl</jointName>
+      <linkName>prop_fl</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1100</maxRotVelocity>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>/sentinel/motor_speed</commandSubTopic>
+      <motorNumber>0</motorNumber>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <motorSpeedPubTopic>/sentinel/motor_rpm</motorSpeedPubTopic>
+    </plugin>
+  </gazebo>
+
+</robot>

@@ -1,0 +1,258 @@
+<?xml version="1.0"?>
+<!--
+  ============================================================================
+  Sentinel Swarm — Disaster Zone Simulation World (Gazebo Harmonic / Ignition)
+  
+  Models a partially collapsed urban block:
+    - Rubble piles (irregular obstacles)
+    - Collapsed wall sections
+    - Open corridors between debris
+    - Static human figure (casualty target for YOLO)
+    - Restricted 30m x 30m operational zone
+
+  Load directly:
+    gz sim worlds/disaster_zone.sdf
+  
+  Via ROS2:
+    ros2 launch sentinel_sim aerial_v1_spawn.launch.py
+  ============================================================================
+-->
+
+<sdf version="1.9">
+  <world name="sentinel_disaster_zone">
+
+    <!-- Physics: real-time factor 1.0, 1kHz step (matches ESP32 800Hz PID) -->
+    <physics name="fast_physics" type="dart">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- Plugins -->
+    <plugin filename="gz-sim-physics-system"        name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-sensors-system"        name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"  name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-imu-system"            name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-contact-system"        name="gz::sim::systems::Contact"/>
+
+    <!-- ── Lighting ──────────────────────────────────────────────────────── -->
+    <light name="sun" type="directional">
+      <pose>0 0 100 0 0 0</pose>
+      <diffuse>0.85 0.80 0.70 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.3 -0.8</direction>
+      <cast_shadows>true</cast_shadows>
+    </light>
+
+    <!-- Low ambient light (simulates smoky disaster environment) -->
+    <scene>
+      <ambient>0.25 0.22 0.20 1.0</ambient>
+      <background>0.5 0.48 0.44 1.0</background>
+      <shadows>true</shadows>
+      <fog>
+        <color>0.70 0.65 0.60 1.0</color>
+        <type>linear</type>
+        <start>15.0</start>
+        <end>45.0</end>
+        <density>0.3</density>
+      </fog>
+    </scene>
+
+    <!-- ── Ground Plane ───────────────────────────────────────────────────── -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="col">
+          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <surface>
+            <friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="vis">
+          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <material>
+            <ambient>0.35 0.30 0.25 1</ambient>
+            <diffuse>0.40 0.35 0.28 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         COLLAPSED BUILDING WALLS
+    ═══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Wall section 1: Large collapsed slab (North) -->
+    <model name="slab_north">
+      <static>true</static>
+      <pose>0 12 0.6 0.3 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>8.0 0.4 1.2</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>8.0 0.4 1.2</size></box></geometry>
+          <material><ambient>0.45 0.42 0.40 1</ambient><diffuse>0.50 0.47 0.44 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Wall section 2: Standing partial wall (West) -->
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-10 0 1.5 0 0 0.1</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>0.4 6.0 3.0</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>0.4 6.0 3.0</size></box></geometry>
+          <material><ambient>0.48 0.44 0.40 1</ambient><diffuse>0.52 0.48 0.44 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Wall section 3: Leaning wall (East) -->
+    <model name="wall_east_leaning">
+      <static>true</static>
+      <pose>10 2 1.0 0 -0.4 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>0.3 5.0 2.5</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>0.3 5.0 2.5</size></box></geometry>
+          <material><ambient>0.45 0.42 0.40 1</ambient><diffuse>0.50 0.46 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         RUBBLE PILES (irregular obstacle clusters)
+    ═══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Rubble pile 1 -->
+    <model name="rubble_1">
+      <static>true</static>
+      <pose>3 4 0.4 0.2 0.1 0.5</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>2.5 2.0 0.8</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>2.5 2.0 0.8</size></box></geometry>
+          <material><ambient>0.40 0.37 0.33 1</ambient><diffuse>0.45 0.41 0.36 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Rubble pile 2 -->
+    <model name="rubble_2">
+      <static>true</static>
+      <pose>-5 -3 0.3 -0.1 0.15 1.2</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>3.0 1.5 0.6</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>3.0 1.5 0.6</size></box></geometry>
+          <material><ambient>0.42 0.38 0.34 1</ambient><diffuse>0.46 0.42 0.37 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Rubble pile 3 -->
+    <model name="rubble_3">
+      <static>true</static>
+      <pose>7 -6 0.5 0.3 -0.2 0.8</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>2.0 2.5 1.0</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>2.0 2.5 1.0</size></box></geometry>
+          <material><ambient>0.38 0.35 0.31 1</ambient><diffuse>0.43 0.39 0.34 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Rubble pile 4: Near casualty (partially obscures victim → tests occlusion) -->
+    <model name="rubble_near_casualty">
+      <static>true</static>
+      <pose>-1.5 -8 0.3 0.1 0.2 0.3</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>1.8 1.2 0.6</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>1.8 1.2 0.6</size></box></geometry>
+          <material><ambient>0.40 0.36 0.32 1</ambient><diffuse>0.44 0.40 0.35 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CASUALTY TARGET — Static human figure lying on ground
+         (Used to test YOLO person detection from camera feed)
+         Position: partially obscured behind rubble pile
+    ═══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Torso -->
+    <model name="casualty_torso">
+      <static>true</static>
+      <pose>-0.5 -9 0.15 1.5708 0 0.4</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.50 0.30 0.20</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.50 0.30 0.20</size></box></geometry>
+          <material><ambient>0.40 0.25 0.15 1</ambient><diffuse>0.50 0.30 0.18 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Head -->
+    <model name="casualty_head">
+      <static>true</static>
+      <pose>-0.1 -9.5 0.18 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><sphere><radius>0.10</radius></sphere></geometry></collision>
+        <visual name="vis">
+          <geometry><sphere><radius>0.10</radius></sphere></geometry>
+          <material><ambient>0.55 0.40 0.30 1</ambient><diffuse>0.60 0.45 0.35 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Legs -->
+    <model name="casualty_legs">
+      <static>true</static>
+      <pose>-1.0 -8.5 0.10 1.5708 0 0.4</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.20 0.55 0.18</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.20 0.55 0.18</size></box></geometry>
+          <material><ambient>0.20 0.20 0.50 1</ambient><diffuse>0.25 0.25 0.55 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         BOUNDARY MARKERS (30m x 30m operational zone, at edges)
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <model name="boundary_n"><static>true</static><pose>0 15 0.5 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>30 0.1 1.0</size></box></geometry>
+      <material><ambient>0.8 0.2 0.0 0.5</ambient></material></visual></link></model>
+
+    <model name="boundary_s"><static>true</static><pose>0 -15 0.5 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>30 0.1 1.0</size></box></geometry>
+      <material><ambient>0.8 0.2 0.0 0.5</ambient></material></visual></link></model>
+
+    <model name="boundary_e"><static>true</static><pose>15 0 0.5 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.1 30 1.0</size></box></geometry>
+      <material><ambient>0.8 0.2 0.0 0.5</ambient></material></visual></link></model>
+
+    <model name="boundary_w"><static>true</static><pose>-15 0 0.5 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.1 30 1.0</size></box></geometry>
+      <material><ambient>0.8 0.2 0.0 0.5</ambient></material></visual></link></model>
+
+  </world>
+</sdf>
