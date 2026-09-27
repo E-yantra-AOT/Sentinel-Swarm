@@ -89,7 +89,7 @@ Through extensive real-world testing, the ground-based tracking and communicatio
 *   **Phase 6: XBee Mesh Link Verification (Complete)** - Validated bidirectional JSON transport over XBee radios. Both nodes effectively transmit and receive target data, with the robot having the highest tracking confidence leading the pursuit.
 
 **Pending Phases:**
-*   **Phase 7: Full Cooperative Ground Test** - Validating swarm maneuvers with multiple concurrent nodes.
+*   **Phase 7: Full Cooperative Ground Test (Complete)** - Implemented a **Weighted Borda Count** leader election protocol. Every 100ms, each robot scores itself and all peers on a composite metric (`0.6×confidence + 0.3×freshness + 0.1×target_size`). The robot with the highest score becomes the **LEADER** and all others defer to its target coordinates. When all robots lose sight, they autonomously split into a coordinated scan sweep (A rotates right, B rotates left) to re-acquire.
 *   **Phase 8: Forward-Drive + PID Integration** - Combining advanced PID dynamics with forward movement for smoother pursuit.
 
 ## Experiment Gallery
