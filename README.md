@@ -6,12 +6,69 @@
 
 The project is divided into two distinct processing nodes that can work collaboratively:
 
+```mermaid
+flowchart TD
+    subgraph AERIAL["🚁 Aerial Node v2 (Jetson Orin Nano Super — 67 TOPS)"]
+        direction TB
+        CAM["📷 RealSense D435i\nRGB-D Camera"] --> SLAM["🗺️ Isaac ROS Visual SLAM\nVIO + EKF Fusion\nCores 1-2"]
+        LIDAR["📡 Livox Mid-360\n3D LiDAR 360°"] --> SLAM
+        CAM --> RTDETR["🤖 RT-DETR-L\nCasualty Detection\nTensorRT FP8 NPU"]
+        THERMAL["🌡️ FLIR Lepton 3.5\nThermal Camera"] --> THERMAL_DLA["Thermal DLA0\nHeat Signature\nDetector"]
+        THERMAL_DLA --> FUSION["🔀 Sensor Fusion\nTriage Engine"]
+        RTDETR --> FUSION
+        SLAM --> PLANNER["📍 RRT* Path Planner\n+ Potential Field\nObstacle Avoidance"]
+        FUSION --> PLANNER
+        PLANNER --> FC_BRIDGE["🔌 Flight Bridge\nUART 115200"]
+        LORA["📻 LoRa SX1262\n868MHz Mesh"] --> SWARM_MGR["🐝 Swarm Manager\nBehavior Tree\nLeader Election"]
+        UWB["📶 DW3000 UWB\nPrecision Ranging"] --> SWARM_MGR
+        SWARM_MGR --> PLANNER
+    end
+
+    subgraph FC["⚡ ESP32-S31 Flight Controller (800Hz FreeRTOS)"]
+        FC_BRIDGE --> PID["Cascaded PID\nAngle → Rate\nCore 1"]
+        IMU["MPU6050\nMahony AHRS"] --> PID
+        PID --> MOTORS["4x BLHeli ESC\n→ 2306 Motors"]
+        PID --> TELEM["IMU Telemetry\n→ Jetson EKF"]
+    end
+
+    subgraph GROUND["🤖 Ground Node (Raspberry Pi 4 — Verified)"]
+        PI_CAM["📷 Camera"] --> YOLO["YOLO11n NCNN\nPerson Tracking\nFP16 CPU"]
+        YOLO --> HYSTERESIS["Hysteresis\nControl Loop"]
+        HYSTERESIS --> ARDUINO["Arduino Bridge\nMotor Commands"]
+        XBEE["📡 XBee PRO S2C\nMesh Telemetry"] --> YOLO
+        ARDUINO --> WHEELS["Differential Drive\nWheels"]
+    end
+
+    LORA_LINK(["☁️ LoRa Swarm Mesh\n868MHz / 915MHz"]) 
+    AERIAL <-->|"LoRa Swarm Packets\nCasualty XYZ + Roles"| LORA_LINK
+    GROUND <-->|"XBee JSON\nConfidence + Target"| LORA_LINK
+```
+
+```mermaid
+flowchart LR
+    subgraph JETSON["Jetson Orin Nano Super — Core Allocation"]
+        C0["Core 0\n────────\nOS Kernel\nLoRa Driver\nUART Bridge"]
+        C1["Core 1-2\n────────\nVisual SLAM\nVIO EKF\nLiDAR Fusion"]
+        C3["Core 3\n────────\nRT-DETR-L\nSAM2 Segment\nTriage Logic"]
+        NPU["GPU/NPU\n────────\nTensorRT FP8\nTriton Server\n~40fps Inference"]
+        DLA0["DLA 0\n────────\nThermal Model\nAlways-On\nLow Power"]
+        DLA1["DLA 1\n────────\nDepth Completion\nMonocular\nEstimation"]
+    end
+    C0 <--> C1 <--> C3
+    C3 --> NPU
+    DLA0 --> C3
+    DLA1 --> C1
+```
+
+
+
 ### 1. Aerial Node (`/aerial_node`)
-A "God-Mode" scratch-built flight controller tailored for the high-speed **ESP32-S31** RISC-V architecture.
-*   **Asymmetric FreeRTOS:** Core 1 handles a strict 800Hz flight loop; Core 0 handles Wi-Fi 6 telemetry and serial communications.
+Designed for **GPS-Denied Disaster Management**, the aerial drone pairs a high-performance flight controller with a next-gen edge companion computer.
+*   **Edge Autonomy (Raspberry Pi 5 8GB):** Runs a multi-threaded Python engine heavily optimized for the Pi 5's Cortex-A76 cores. Core 1-2 run Monocular **Visual SLAM** for 3D mapping and navigation, while Core 3 runs a dedicated **YOLO11** NCNN pipeline for casualty detection.
+*   **LoRa Telemetry:** Bypasses XBee and Wi-Fi to use an SPI-based SX1262 LoRa module for long-range, penetrating communication in disaster zones.
+*   **"God-Mode" Flight Controller:** A scratch-built ESP32-S31 flight controller running Asymmetric FreeRTOS.
 *   **ArduPilot-Grade Dynamics:** Implements a Cascaded PID architecture (Angle -> Rate) for locked-in stability.
-*   **Mahony AHRS Sensor Fusion:** Uses advanced quaternion math to fuse the MPU6050 gyroscope and accelerometer data into flawless 3D spatial orientation, avoiding Gimbal Lock.
-*   **Signal Processing:** Implements PT1 Low-Pass filters on the Gyroscope and D-Term to eliminate motor vibration noise.
+*   **Mahony AHRS Sensor Fusion:** Fuses MPU6050 gyroscope and accelerometer data into 3D spatial orientation using advanced quaternion math.
 
 ### 2. Ground Node (`/ground_node`)
 A tested and verified companion computer stack (Raspberry Pi + Arduino Bridge) for terrestrial tracking and swarm coordination.
