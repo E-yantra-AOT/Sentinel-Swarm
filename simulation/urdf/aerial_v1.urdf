@@ -1,39 +1,10 @@
 <?xml version="1.0"?>
-<!--
-  ============================================================================
-  Sentinel Swarm — Aerial Node v1 URDF
-  Hardware: ESP32-S31 FC + Raspberry Pi 5 + MPU6050 + USB Webcam + LoRa
-  Frame:    ~250mm quad, X-configuration
-  ============================================================================
-
-  Frame geometry (top view, X config):
-            Front
-         M1(-+)  M2(+-)
-            \  /
-             \/
-             /\
-            /  \
-         M3(+-)  M4(-+)
-            Rear
-
-  M1 = Front-Left  (CCW prop, negative spin)
-  M2 = Front-Right (CW prop,  positive spin)
-  M3 = Rear-Left   (CW prop,  positive spin)
-  M4 = Rear-Right  (CCW prop, negative spin)
-
-  Load into Gazebo:
-    ros2 launch sentinel_sim aerial_v1_spawn.launch.py
-
-  Visualize in RViz2:
-    ros2 run robot_state_publisher robot_state_publisher --ros-args
-      -p robot_description:=$(xacro urdf/aerial_v1.urdf)
--->
 
 <robot name="sentinel_aerial_v1">
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
+  <!-- 
        MATERIALS
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
   <material name="carbon_fiber">
     <color rgba="0.1 0.1 0.1 1.0"/>
   </material>
@@ -57,10 +28,10 @@
   </material>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
-       BASE LINK — Central frame body (carbon fiber plate)
+  <!-- 
+       BASE LINK - Central frame body (carbon fiber plate)
        Dimensions: 140mm x 140mm x 8mm
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
   <link name="base_link">
     <inertial>
       <!-- Total frame mass ~320g (body + electronics, excl. battery) -->
@@ -88,10 +59,10 @@
   </link>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
-       ARMS — 4x carbon fiber tubes (125mm long, 10mm diameter)
+  <!-- 
+       ARMS - 4x carbon fiber tubes (125mm long, 10mm diameter)
        Arm length: 125mm from center → motor mount
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
 
   <!-- Arm 1: Front-Left (45° from +X axis) -->
   <link name="arm_fl">
@@ -190,10 +161,10 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
-       MOTORS — 2306 2450KV Brushless (x4)
+  <!-- 
+       MOTORS - 2306 2450KV Brushless (x4)
        Modelled as small cylinders on each arm tip
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
 
   <!-- Motor 1: Front-Left (CCW) -->
   <link name="motor_fl">
@@ -292,10 +263,10 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
-       PROPELLERS — 5045 tri-blade (127mm radius)
+  <!-- 
+       PROPELLERS - 5045 tri-blade (127mm radius)
        Modelled as thin flat discs (visual only, no collision for perf)
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
 
   <link name="prop_fl">
     <inertial>
@@ -378,9 +349,9 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
+  <!-- 
        ESP32-S31 FLIGHT CONTROLLER (on top of frame center)
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
   <link name="esp32_fc">
     <inertial>
       <mass value="0.010"/>
@@ -401,9 +372,9 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
+  <!-- 
        RASPBERRY PI 5 (companion computer, stacked above ESP32)
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
   <link name="rpi5">
     <inertial>
       <mass value="0.046"/>
@@ -424,10 +395,10 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
+  <!-- 
        MPU6050 IMU (on ESP32 FC board)
-       — This is the Gazebo IMU sensor link
-  ═══════════════════════════════════════════════════════════════════════════ -->
+       - This is the Gazebo IMU sensor link
+   -->
   <link name="imu_link">
     <inertial>
       <mass value="0.002"/>
@@ -448,9 +419,9 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
+  <!-- 
        USB WEBCAM (forward-facing, mounted on front edge of frame)
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
   <link name="camera_link">
     <inertial>
       <mass value="0.040"/>
@@ -484,9 +455,9 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
+  <!-- 
        LoRa SX1262 MODULE (rear-right of frame, antenna pointing up)
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
   <link name="lora_module">
     <inertial>
       <mass value="0.008"/>
@@ -527,9 +498,9 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
-       BATTERY — 4S 3300mAh LiPo (below frame, acts as landing skid)
-  ═══════════════════════════════════════════════════════════════════════════ -->
+  <!-- 
+       BATTERY - 4S 3300mAh LiPo (below frame, acts as landing skid)
+   -->
   <link name="battery">
     <inertial>
       <!-- 4S 3300mAh LiPo weighs ~290g -->
@@ -556,9 +527,9 @@
   </joint>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
+  <!-- 
        GAZEBO PLUGINS
-  ═══════════════════════════════════════════════════════════════════════════ -->
+   -->
 
   <!-- IMU Sensor Plugin (simulates MPU6050 on ESP32-S31) -->
   <gazebo reference="imu_link">
@@ -610,25 +581,137 @@
   </gazebo>
 
   <!-- Quadrotor Physics Plugin (Gazebo harmonic / Ignition) -->
+  
   <gazebo>
     <plugin filename="libgz-sim-multicopter-motor-model-system.so"
             name="gz::sim::systems::MulticopterMotorModel">
-      <robotNamespace>sentinel</robotNamespace>
-      <motorNumber>0</motorNumber>
+      <robotNamespace>__DRONE_ID__</robotNamespace>
+      
       <jointName>joint_prop_fl</jointName>
       <linkName>prop_fl</linkName>
       <turningDirection>ccw</turningDirection>
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1100</maxRotVelocity>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
       <motorConstant>8.54858e-06</motorConstant>
       <momentConstant>0.016</momentConstant>
-      <commandSubTopic>/sentinel/motor_speed</commandSubTopic>
-      <motorNumber>0</motorNumber>
+      <actuator_number>0</actuator_number>
       <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
       <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
-      <motorSpeedPubTopic>/sentinel/motor_rpm</motorSpeedPubTopic>
+      
+    </plugin>
+  </gazebo>
+  <gazebo>
+    <plugin filename="libgz-sim-multicopter-motor-model-system.so"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <robotNamespace>__DRONE_ID__</robotNamespace>
+      
+      <jointName>joint_prop_fr</jointName>
+      <linkName>prop_fr</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1100</maxRotVelocity>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <actuator_number>1</actuator_number>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      
+    </plugin>
+  </gazebo>
+  <gazebo>
+    <plugin filename="libgz-sim-multicopter-motor-model-system.so"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <robotNamespace>__DRONE_ID__</robotNamespace>
+      
+      <jointName>joint_prop_rl</jointName>
+      <linkName>prop_rl</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1100</maxRotVelocity>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <actuator_number>2</actuator_number>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      
+    </plugin>
+  </gazebo>
+  <gazebo>
+    <plugin filename="libgz-sim-multicopter-motor-model-system.so"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <robotNamespace>__DRONE_ID__</robotNamespace>
+      
+      <jointName>joint_prop_rr</jointName>
+      <linkName>prop_rr</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1100</maxRotVelocity>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <actuator_number>3</actuator_number>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      
     </plugin>
   </gazebo>
 
+
+
+  <gazebo>
+    <plugin filename="libgz-sim-multicopter-control-system.so"
+            name="gz::sim::systems::MulticopterVelocityControl">
+      <robotNamespace>__DRONE_ID__</robotNamespace>
+      <commandSubTopic>gazebo/command/twist</commandSubTopic>
+      <enableSubTopic>enable</enableSubTopic>
+      <comLinkName>base_link</comLinkName>
+      <velocityGain>20.0 20.0 20.0</velocityGain>
+      <attitudeGain>1.0 1.5 0.075</attitudeGain>
+      <angularRateGain>0.4 0.52 0.18</angularRateGain>
+      <rotorConfiguration>
+        <rotor>
+          <jointName>joint_prop_fl</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>1</direction>
+        </rotor>
+        <rotor>
+          <jointName>joint_prop_fr</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>-1</direction>
+        </rotor>
+        <rotor>
+          <jointName>joint_prop_rl</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>-1</direction>
+        </rotor>
+        <rotor>
+          <jointName>joint_prop_rr</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>1</direction>
+        </rotor>
+      </rotorConfiguration>
+    </plugin>
+  
+    <!-- Publish ground truth pose for simulation feedback -->
+    <plugin filename="libgz-sim-pose-publisher-system.so"
+            name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>true</publish_link_pose>
+      <use_pose_vector_msg>false</use_pose_vector_msg>
+      <static_publisher>true</static_publisher>
+      <static_update_frequency>20</static_update_frequency>
+    </plugin>
+  </gazebo>
 </robot>
+
+

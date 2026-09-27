@@ -1,0 +1,114 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Sentinel Swarm — Root .gitignore
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+
+# ── Virtual Environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+swarm_venv/
+pip_tmp/
+pip_cache/
+
+# ── Distribution / packaging ──────────────────────────────────────────────────
+dist/
+*.egg-info/
+*.egg
+*.whl
+
+# ── ROS 2 / Colcon build artifacts ───────────────────────────────────────────
+build/
+install/
+log/
+.colcon/
+*.ament_cmake
+COLCON_IGNORE
+
+# ── C / C++ / Arduino / PlatformIO ───────────────────────────────────────────
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+*.map
+*.d
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# ── IDEs and Editors ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# ── OS junk ───────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Secrets / environment ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.yaml
+
+# ── Logs and runtime output ───────────────────────────────────────────────────
+*.log
+*.log.*
+logs/
+*.ros/
+
+# ── ML model caches and training runs ────────────────────────────────────────
+runs/
+*.cache
+wandb/
+mlruns/
+*.onnx.cache
+
+# ── YOLO / NCNN model weights (large binaries — store in releases) ───────────
+# Keep .pt and NCNN model directory tracked since they're needed for deploy
+# Uncomment below to untrack:
+# *.pt
+# ground_node/phase0_setup/yolo11n_ncnn_model/
+
+# ── Unit test / coverage ──────────────────────────────────────────────────────
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# ── Temp / scratch ────────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.orig
+scratch/
+tmp/
+
+# ── Gazebo / simulation runtime ───────────────────────────────────────────────
+*.pcd
+*.bag
+*.db3
+*.mcap
+frames_*.pdf
+.vscode/
+.github/

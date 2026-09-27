@@ -50,7 +50,7 @@ def compute_spawn_positions(n: int, formation: str = 'line') -> list:
             positions.append({
                 'x': -((n - 1) * 1.5) + i * 3.0,
                 'y': 0.0,
-                'z': 0.5,       # 0.5m above ground (sitting on battery)
+                'z': 3.0,       # 0.5m above ground (sitting on battery)
                 'yaw': 0.0,
             })
 
@@ -62,7 +62,7 @@ def compute_spawn_positions(n: int, formation: str = 'line') -> list:
             positions.append({
                 'x': col * 5.0 - (cols * 2.5),
                 'y': row * 5.0,
-                'z': 0.5,
+                'z': 3.0,
                 'yaw': 0.0,
             })
 
@@ -73,7 +73,7 @@ def compute_spawn_positions(n: int, formation: str = 'line') -> list:
             positions.append({
                 'x': radius * math.cos(angle),
                 'y': radius * math.sin(angle),
-                'z': 0.5,
+                'z': 3.0,
                 'yaw': angle + math.pi,   # Face inward
             })
 
@@ -117,6 +117,9 @@ def launch_setup(context, *args, **kwargs):
         drone_id  = f'sentinel_{i+1:02d}'
         namespace = f'/sentinel/{drone_id}'
 
+        # Replace template markers
+        drone_urdf = urdf_content.replace('__DRONE_ID__', drone_id)
+
         # Robot State Publisher (one per drone)
         nodes.append(
             Node(
@@ -124,8 +127,21 @@ def launch_setup(context, *args, **kwargs):
                 executable = 'robot_state_publisher',
                 namespace  = namespace,
                 name       = 'rsp',
-                parameters = [{'robot_description': urdf_content,
-                               'use_sim_time': True}],
+                parameters = [{'robot_description': drone_urdf,
+                               'use_sim_time': True,
+                               'frame_prefix': f'{drone_id}/'}],
+                output     = 'screen',
+            )
+        )
+
+        # Joint State Publisher (provides 0.0 default for continuous joints to satisfy RViz)
+        nodes.append(
+            Node(
+                package    = 'joint_state_publisher',
+                executable = 'joint_state_publisher',
+                namespace  = namespace,
+                name       = 'jsp',
+                parameters = [{'robot_description': drone_urdf, 'use_sim_time': True}],
                 output     = 'screen',
             )
         )
@@ -160,26 +176,40 @@ def launch_setup(context, *args, **kwargs):
                 namespace  = namespace,
                 name       = f'gz_bridge_{drone_id}',
                 arguments  = [
-                    f'/sentinel/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
-                    f'/sentinel/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                    f'/{drone_id}/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
+                    f'/{drone_id}/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                    f'/{drone_id}/gazebo/command/twist@geometry_msgs/msg/Twist]gz.msgs.Twist',
+                    f'/{drone_id}/enable@std_msgs/msg/Bool]gz.msgs.Boolean',
                     f'/model/{drone_id}/pose@geometry_msgs/msg/PoseStamped[gz.msgs.Pose',
-                    f'/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
                 ],
                 output = 'screen',
             )
         )
 
-    # ── 3. Swarm State Broadcaster (publishes all drone poses on one topic) ─
-    nodes.append(
-        Node(
-            package    = 'sentinel_sim',
-            executable = 'swarm_state_broadcaster',
-            name       = 'swarm_broadcaster',
-            parameters = [{'num_drones': num_drones,
-                           'use_sim_time': True}],
-            output = 'screen',
+        # Flight Bridge Node
+        nodes.append(
+            Node(
+                package    = 'sentinel_sim',
+                executable = 'sim_flight_bridge.py',
+                namespace  = namespace,
+                name       = f'sim_flight_bridge_{drone_id}',
+                parameters = [{'robot_description': drone_urdf, 'use_sim_time': True}],
+                arguments  = ['--drone-id', drone_id, '--drone-index', str(i), '--num-drones', str(num_drones)],
+                output     = 'screen'
+            )
         )
-    )
+
+    # ── 3. Swarm State Broadcaster (publishes all drone poses on one topic) ─
+    # nodes.append(
+    #     Node(
+    #         package    = 'sentinel_sim',
+    #         executable = 'swarm_state_broadcaster',
+    #         name       = 'swarm_broadcaster',
+    #         parameters = [{'num_drones': num_drones,
+    #                        'use_sim_time': True}],
+    #         output = 'screen',
+    #     )
+    # )
 
     # ── 4. Optional RViz2 ──────────────────────────────────────────────────
     if rviz_flag:
@@ -190,10 +220,21 @@ def launch_setup(context, *args, **kwargs):
                 executable = 'rviz2',
                 name       = 'rviz2',
                 arguments  = ['-d', rviz_config] if os.path.exists(rviz_config) else [],
-                parameters = [{'use_sim_time': True}],
+                parameters = [{'robot_description': drone_urdf, 'use_sim_time': True}],
                 output     = 'screen',
             )
         )
+
+    # Global clock bridge
+    nodes.append(
+        Node(
+            package    = 'ros_gz_bridge',
+            executable = 'parameter_bridge',
+            name       = 'gz_bridge_clock',
+            arguments  = ['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
+            output     = 'screen'
+        )
+    )
 
     return nodes
 

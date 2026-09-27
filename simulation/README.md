@@ -63,10 +63,7 @@ ros2 launch sentinel_sim aerial_v1_spawn.launch.py num_drones:=5
 
 ### 10 Drones in a Circle Formation + RViz2
 ```bash
-ros2 launch sentinel_sim aerial_v1_spawn.launch.py \
-  num_drones:=10 \
-  formation:=circle \
-  rviz:=true
+ros2 launch sentinel_sim aerial_v1_spawn.launch.py num_drones:=5 formation:=circle rviz:=true
 ```
 
 ### 100 Drones in a Grid (Demo for judges)

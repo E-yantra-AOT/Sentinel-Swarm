@@ -1,0 +1,11 @@
+### Gazebo Harmonic & RViz2 Swarm Simulation
+<p align="center">
+  <img src="assets/gazebo_rviz_success.png" width="800" />
+  <br><em>Sentinel Swarm taking flight in Gazebo Harmonic with fully synchronized TF tree rendering in RViz2.</em>
+</p>
+
+### Simulation Terminal Logs
+<p align="center">
+  <img src="assets/simulation_terminal_logs.png" width="800" />
+  <br><em>Backend ROS 2 launch logs confirming Gazebo bridge initialization, swarm role allocation, and ARMED → TAKEOFF phase transitions.</em>
+</p>

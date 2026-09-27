@@ -1,100 +1,259 @@
-# Sentinel: Distributed Autonomous Aerospace & Ground Swarm
+# Sentinel Swarm — GPS-Denied Disaster Management Drone Swarm
 
-**Sentinel** is an advanced **IoRT (Internet of Robotic Things)** and **Edge AI** ecosystem. It is a custom-built, dual-layer autonomous swarm designed for high-performance object tracking and stabilized flight. By bridging on-device neural networking (Edge IoT) with decentralized Machine-to-Machine (M2M) mesh communication and high-speed aerospace flight control, Sentinel serves as a scalable, distributed physical computing platform built entirely from scratch without relying on black-box commercial flight controllers.
+**Sentinel** is a fully custom-built, dual-layer autonomous swarm system for **GPS-denied disaster management**. It pairs a quadrotor aerial node with ground robots, coordinating via a LoRa/XBee mesh to search disaster zones, detect casualties using onboard AI, and relay positions back to a command center — all without GPS or external infrastructure.
+
+Built entirely from scratch for a hackathon, with no black-box commercial flight controllers.
+
+
+---
 
 ## Architecture Overview
 
-The project is divided into two distinct processing nodes that can work collaboratively:
-
 ```mermaid
 flowchart TD
-    subgraph AERIAL["🚁 Aerial Node v2 (Jetson Orin Nano Super — 67 TOPS)"]
+    subgraph AERIAL["🚁 Aerial Node v2 (Raspberry Pi 5 + ESP32-S31 FC)"]
         direction TB
-        CAM["📷 RealSense D435i\nRGB-D Camera"] --> SLAM["🗺️ Isaac ROS Visual SLAM\nVIO + EKF Fusion\nCores 1-2"]
-        LIDAR["📡 Livox Mid-360\n3D LiDAR 360°"] --> SLAM
-        CAM --> RTDETR["🤖 RT-DETR-L\nCasualty Detection\nTensorRT FP8 NPU"]
-        THERMAL["🌡️ FLIR Lepton 3.5\nThermal Camera"] --> THERMAL_DLA["Thermal DLA0\nHeat Signature\nDetector"]
-        THERMAL_DLA --> FUSION["🔀 Sensor Fusion\nTriage Engine"]
-        RTDETR --> FUSION
-        SLAM --> PLANNER["📍 RRT* Path Planner\n+ Potential Field\nObstacle Avoidance"]
+        CAM["📷 USB Webcam\n1280×720 30fps"] --> SLAM["🗺️ Monocular SLAM\nEKF 9-state\n+ RRT* Planner"]
+        IMU_HW["MPU6050 IMU\n800Hz Mahony AHRS"] --> SLAM
+        CAM --> VISION["🤖 YOLO11n NCNN\nCasualty Detection\nFP16 CPU"]
+        THERMAL["🌡️ (Thermal — future)"] --> VISION
+        VISION --> FUSION["🔀 Triage Engine\nMOBILE / IMMOBILE\n/ CRITICAL"]
+        SLAM --> PLANNER["📍 RRT* + Potential Field\nObstacle Avoidance"]
         FUSION --> PLANNER
-        PLANNER --> FC_BRIDGE["🔌 Flight Bridge\nUART 115200"]
-        LORA["📻 LoRa SX1262\n868MHz Mesh"] --> SWARM_MGR["🐝 Swarm Manager\nBehavior Tree\nLeader Election"]
-        UWB["📶 DW3000 UWB\nPrecision Ranging"] --> SWARM_MGR
+        LORA["📻 LoRa SX1262\n868MHz Mesh"] --> SWARM_MGR["🐝 Swarm Manager\nBehavior Tree\nVoronoi Zones\nReynolds Flocking"]
         SWARM_MGR --> PLANNER
+        PLANNER --> FC_BRIDGE["🔌 Flight Bridge\nUART 115200\n→ ESP32-S31"]
     end
 
     subgraph FC["⚡ ESP32-S31 Flight Controller (800Hz FreeRTOS)"]
-        FC_BRIDGE --> PID["Cascaded PID\nAngle → Rate\nCore 1"]
-        IMU["MPU6050\nMahony AHRS"] --> PID
-        PID --> MOTORS["4x BLHeli ESC\n→ 2306 Motors"]
-        PID --> TELEM["IMU Telemetry\n→ Jetson EKF"]
+        FC_BRIDGE --> PID["Cascaded PID\nAngle → Rate"]
+        PID --> MOTORS["4× BLHeli ESC\n→ 2306 Motors"]
+        PID --> TELEM["IMU Telemetry\n→ Pi EKF"]
     end
 
-    subgraph GROUND["🤖 Ground Node (Raspberry Pi 4 — Verified)"]
-        PI_CAM["📷 Camera"] --> YOLO["YOLO11n NCNN\nPerson Tracking\nFP16 CPU"]
-        YOLO --> HYSTERESIS["Hysteresis\nControl Loop"]
-        HYSTERESIS --> ARDUINO["Arduino Bridge\nMotor Commands"]
-        XBEE["📡 XBee PRO S2C\nMesh Telemetry"] --> YOLO
-        ARDUINO --> WHEELS["Differential Drive\nWheels"]
+    subgraph SIM["🖥️ Gazebo Harmonic Simulation"]
+        GZ_WORLD["disaster_zone.sdf\n30×30m Rubble + Fog\nCasualty Mannequin"]
+        GZ_DRONE["aerial_v1 URDF\n951g Quad\n4× Motor Plugins\nIMU + Camera"]
+        GZ_BRIDGE["ros_gz_bridge\nROS2 ↔ Gazebo\nTopics"]
+        SIM_AUTONOMY["sim_flight_bridge.py\nSLAM + Swarm\nper drone"]
+        GZ_WORLD --> GZ_DRONE --> GZ_BRIDGE --> SIM_AUTONOMY
     end
 
-    LORA_LINK(["☁️ LoRa Swarm Mesh\n868MHz / 915MHz"]) 
-    AERIAL <-->|"LoRa Swarm Packets\nCasualty XYZ + Roles"| LORA_LINK
+    subgraph GROUND["🤖 Ground Node (Raspberry Pi 4)"]
+        PI_CAM["📷 Camera"] --> YOLO["YOLO11n NCNN\nPerson Tracking"]
+        YOLO --> NEGOTIATOR["Phase 7 Swarm\nWeighted Borda Count\nLeader Election 100ms"]
+        NEGOTIATOR --> ARDUINO["Arduino Bridge\nMotor Commands"]
+        XBEE["📡 XBee PRO S2C\nMesh Telemetry"] --> NEGOTIATOR
+        ARDUINO --> WHEELS["Differential Drive"]
+    end
+
+    LORA_LINK(["☁️ LoRa Swarm Mesh\n868MHz"])
+    AERIAL <-->|"Casualty XYZ\nDrone Roles\nVoronoi Zones"| LORA_LINK
     GROUND <-->|"XBee JSON\nConfidence + Target"| LORA_LINK
 ```
 
-```mermaid
-flowchart LR
-    subgraph JETSON["Jetson Orin Nano Super — Core Allocation"]
-        C0["Core 0\n────────\nOS Kernel\nLoRa Driver\nUART Bridge"]
-        C1["Core 1-2\n────────\nVisual SLAM\nVIO EKF\nLiDAR Fusion"]
-        C3["Core 3\n────────\nRT-DETR-L\nSAM2 Segment\nTriage Logic"]
-        NPU["GPU/NPU\n────────\nTensorRT FP8\nTriton Server\n~40fps Inference"]
-        DLA0["DLA 0\n────────\nThermal Model\nAlways-On\nLow Power"]
-        DLA1["DLA 1\n────────\nDepth Completion\nMonocular\nEstimation"]
-    end
-    C0 <--> C1 <--> C3
-    C3 --> NPU
-    DLA0 --> C3
-    DLA1 --> C1
+---
+
+## Repository Structure
+
+```
+Sentinel Swarm/
+├── aerial_node/                  # v1 — Raspberry Pi 5 autonomy skeleton
+│   ├── aerial_fc.ino             # ESP32-S31 FreeRTOS flight controller
+│   ├── aerial_vision_node.py     # Pi 5 SLAM + YOLO scaffold (v1)
+│   └── diagram.json / wokwi.toml # Wokwi simulation config
+│
+├── aerial_node_v2/               # v2 — Full autonomy stack (active)
+│   ├── main.py                   # 20Hz master control loop
+│   ├── flight_bridge/
+│   │   └── flight_bridge.py      # UART bridge to ESP32 (P-ctrl velocity→attitude)
+│   ├── slam/
+│   │   └── sentinel_slam.py      # 9-state EKF + Voxel map + RRT* + Potential Field
+│   ├── vision/
+│   │   └── sentinel_vision.py    # RT-DETR / YOLO + thermal fusion + 3D localizer
+│   └── swarm/
+│       └── sentinel_swarm.py     # Behavior tree + Voronoi + Reynolds + LoRa mesh
+│
+├── ground_node/                  # Ground robot stack (verified hardware)
+│   ├── shared/
+│   │   ├── xbee_transport.py     # Thread-safe XBee JSON serial transport
+│   │   └── yolo_ncnn.py          # YOLO11n NCNN wrapper for Pi CPU
+│   ├── phase4_tracking/
+│   │   └── ground_tracker.py     # Phase 4: symmetric peer tracking
+│   ├── phase7_swarm_negotiation/
+│   │   ├── swarm_negotiator.py   # Weighted Borda Count leader election
+│   │   └── phase7_swarm_tracker.py # Phase 7 entry point
+│   └── phase0_setup/             # Hardware setup scripts
+│
+├── simulation/                   # ROS2 Gazebo Harmonic sim (sentinel_sim pkg)
+│   ├── package.xml
+│   ├── CMakeLists.txt
+│   ├── urdf/
+│   │   └── aerial_v1.urdf        # 951g quad: 21 links, 4 motors, IMU, camera
+│   ├── worlds/
+│   │   └── disaster_zone.sdf     # 30×30m rubble zone with casualty mannequin
+│   ├── launch/
+│   │   └── aerial_v1_spawn.launch.py  # Multi-drone spawn + RViz2
+│   ├── scripts/
+│   │   └── sim_flight_bridge.py  # Per-drone SLAM+Swarm autonomy node
+│   └── config/
+│       └── sentinel_rviz.rviz    # Pre-configured RViz2 layout
+│
+└── assets/                       # Hardware photos
 ```
 
+---
+
+## Hardware
+
+### Aerial Node
+| Component | Part | Notes |
+|---|---|---|
+| Frame | ~250mm X-config quad | Carbon fibre arms |
+| Flight Controller | ESP32-S31 | 800Hz FreeRTOS, custom firmware |
+| Companion | Raspberry Pi 5 8GB | SLAM + YOLO + Swarm |
+| IMU | MPU6050 | Mahony AHRS, 1kHz |
+| Camera | USB Webcam | 1280×720 30fps, monocular SLAM |
+| Radio | LoRa SX1262 | 868MHz mesh, swarm coordination |
+| Battery | 4S 3300mAh LiPo | ~290g, below-frame mount |
+| Motors | 2306 brushless | 4× BLHeli ESC |
+| **Total mass** | **~951g** | Validated in URDF |
+
+### Ground Node
+| Component | Part |
+|---|---|
+| Companion | Raspberry Pi 4 |
+| Radio | XBee PRO S2C |
+| Vision | YOLO11n NCNN FP16 |
+| Motor bridge | Arduino |
+| Drive | Differential drive with L298N H-bridge |
+
+---
+
+## Simulation — Quick Start
+
+Requires **ROS 2 Jazzy** + **Gazebo Harmonic** on Ubuntu 24.04 Noble.
 
 
-### 1. Aerial Node (`/aerial_node`)
-Designed for **GPS-Denied Disaster Management**, the aerial drone pairs a high-performance flight controller with a next-gen edge companion computer.
-*   **Edge Autonomy (Raspberry Pi 5 8GB):** Runs a multi-threaded Python engine heavily optimized for the Pi 5's Cortex-A76 cores. Core 1-2 run Monocular **Visual SLAM** for 3D mapping and navigation, while Core 3 runs a dedicated **YOLO11** NCNN pipeline for casualty detection.
-*   **LoRa Telemetry:** Bypasses XBee and Wi-Fi to use an SPI-based SX1262 LoRa module for long-range, penetrating communication in disaster zones.
-*   **"God-Mode" Flight Controller:** A scratch-built ESP32-S31 flight controller running Asymmetric FreeRTOS.
-*   **ArduPilot-Grade Dynamics:** Implements a Cascaded PID architecture (Angle -> Rate) for locked-in stability.
-*   **Mahony AHRS Sensor Fusion:** Fuses MPU6050 gyroscope and accelerometer data into 3D spatial orientation using advanced quaternion math.
+```bash
+# 1. Install dependencies (first time only)
+sudo apt install ros-jazzy-desktop ros-jazzy-ros-gz \
+                 ros-jazzy-robot-state-publisher \
+                 ros-jazzy-joint-state-publisher gz-harmonic
 
-### 2. Ground Node (`/ground_node`)
-A tested and verified companion computer stack (Raspberry Pi + Arduino Bridge) for terrestrial tracking and swarm coordination.
-*   **Neural Vision Engine:** Runs an optimized YOLO NCNN wrapper to track human targets in real-time.
-*   **Mesh Communication:** Utilizes a lightweight XBee transport layer to broadcast tracking data between multiple swarm nodes.
-*   **Hysteresis Control Loop:** Prevents mechanical jitter by implementing deadzone logic during active target pursuit.
+# 2. Build the ROS2 package
+cd /path/to/Sentinel-Swarm
+source /opt/ros/jazzy/setup.bash
+colcon build
 
-## Experiments Conducted
+# 3. Launch — 5 drones in circle formation with Gazebo + RViz2
+source install/setup.bash
+ros2 launch sentinel_sim aerial_v1_spawn.launch.py \
+    num_drones:=5 formation:=circle rviz:=true
+```
 
-Through extensive real-world testing, the ground-based tracking and communication layers have been verified. The following phases detail our experimental progress and milestones:
+After ~8 seconds, all 5 drones arm and take off autonomously. Each drone:
+1. Climbs to 3m hover altitude
+2. Navigates to its assigned **Voronoi zone** using the real SLAM navigator
+3. Searches for the casualty mannequin at `(-0.5, -9.0)` in the world
+4. Transitions to **RESCUE HOVER** when it detects the casualty
+5. Broadcasts its `DroneState` JSON to all peers via `/swarm/state/<id>` topics
 
-*   **Phase 0: Hardware Setup & Inspection (Complete)** - Initialized the chassis, Raspberry Pi, and XBee radios. Resolved brown-out issues by throttling YOLO CPU threads to `num_threads=1`.
-*   **Phase 1: Motor Control (Complete)** - Achieved stable motor control bridging between the Pi and the low-level Arduino bridge.
-*   **Phase 2: Serial Bridge Verification (Complete)** - Established reliable ASCII-based serial communication (115200 baud) between the Pi and motor controller.
-*   **Phase 3: Vision Engine & YOLO (Complete)** - Successfully deployed YOLO11n (exported to NCNN FP16) natively on the Pi CPU for real-time person detection.
-*   **Phase 4: Streaming & Telemetry (Complete)** - Set up debug streams to visualize tracking output without interfering with the main control loop.
-*   **Phase 5: Hysteresis Tracking (Complete)** - Implemented visual tracking that commands motors dynamically while filtering out minor jitter using hysteresis deadzones.
-*   **Phase 6: XBee Mesh Link Verification (Complete)** - Validated bidirectional JSON transport over XBee radios. Both nodes effectively transmit and receive target data, with the robot having the highest tracking confidence leading the pursuit.
+**RViz2 setup (auto-configured):**
+- Fixed Frame: `sentinel_01/base_link`
+- TF Prefix: `sentinel_01`
+- Description Topic: `/sentinel/sentinel_01/robot_description`
 
-**Pending Phases:**
-*   **Phase 7: Full Cooperative Ground Test (Complete)** - Implemented a **Weighted Borda Count** leader election protocol. Every 100ms, each robot scores itself and all peers on a composite metric (`0.6×confidence + 0.3×freshness + 0.1×target_size`). The robot with the highest score becomes the **LEADER** and all others defer to its target coordinates. When all robots lose sight, they autonomously split into a coordinated scan sweep (A rotates right, B rotates left) to re-acquire.
-*   **Phase 8: Forward-Drive + PID Integration** - Combining advanced PID dynamics with forward movement for smoother pursuit.
+**Launch arguments:**
+
+| Argument | Default | Options |
+|---|---|---|
+| `num_drones` | `1` | 1–100 |
+| `formation` | `line` | `line` / `grid` / `circle` |
+| `rviz` | `false` | `true` / `false` |
+| `world` | `disaster_zone.sdf` | any `.sdf` path |
+
+---
+
+## Autonomy Stack
+
+### SLAM — `sentinel_slam.py`
+- **9-state EKF**: fuses IMU (accel + gyro) with VIO pose updates
+- **Voxel occupancy map**: 100×100×100m at 0.1m resolution
+- **RRT* global planner**: samples collision-free paths to waypoints
+- **Dynamic Potential Field**: reactive obstacle avoidance at 20Hz
+- Output: `(vx, vy, vz)` velocity commands clamped to 1.5 m/s
+
+### Swarm — `sentinel_swarm.py`
+- **Behavior Tree** (priority order): Low battery → RTB | Coverage gap → Relay | Casualty → Rescue | Else → Search
+- **Voronoi partitioner**: divides the search zone evenly between N drones, zero overlap
+- **Reynolds flocking**: separation + alignment + cohesion for formation hold
+- **Leader election**: Bully algorithm, highest battery wins
+- **Transport**: LoRa SX1262 on hardware; ROS2 topics in simulation
+
+### Vision — `sentinel_vision.py`
+- **Detection**: RT-DETR-L (Triton) with ONNX CPU fallback
+- **Thermal fusion**: FLIR Lepton 33–38°C body temperature band
+- **3D localization**: RealSense D435i depth or monocular fallback
+- **Triage**: optical flow motion analysis → MOBILE / IMMOBILE / CRITICAL
+
+### Flight Bridge — `flight_bridge.py`
+- Simple P-controller: `(vx, vy) → (pitch, roll)` setpoints, gain Kv=2.5
+- Wire format: `CMD,pitch,roll,thrust\n` over UART 115200 to ESP32
+- IMU telemetry: `TEL,ax,ay,az,gx,gy,gz,bat_v\n` back to EKF
+- Gracefully runs in simulation mode if serial port is unavailable
+
+---
+
+## Ground Node — Phase Progress
+
+| Phase | Status | Description |
+|---|---|---|
+| Phase 0 | ✅ Complete | Hardware setup, brown-out fix (YOLO `num_threads=1`) |
+| Phase 1 | ✅ Complete | Motor control via Pi→Arduino serial bridge |
+| Phase 2 | ✅ Complete | ASCII serial 115200 baud verification |
+| Phase 3 | ✅ Complete | YOLO11n NCNN FP16 on Pi CPU — real-time detection |
+| Phase 4 | ✅ Complete | Symmetric peer tracking, best-confidence target selection |
+| Phase 5 | ✅ Complete | Hysteresis deadzone tracking loop |
+| Phase 6 | ✅ Complete | XBee bidirectional JSON mesh verified |
+| Phase 7 | ✅ Complete | Weighted Borda Count leader election (100ms cycle) |
+| Phase 8 | 🔄 Planned | PID forward-drive integration |
+
+## Challenges Faced
+
+During the integration of the Gazebo Harmonic simulation, several deep physics and architecture bugs were uncovered and resolved:
+
+- **Propeller Collision Geometries:** The drone propellers were modeled with `<collision>` tags that overlapped with the main `base_link` geometry. In Gazebo Harmonic (DART physics engine), this caused an instant rigid-body jam upon spawn, preventing the rotors from spinning and entirely blocking lift-off despite active motor commands. Removing the collision geometries from the propellers resolved this.
+- **URDF Templating Bug:** The `aerial_v1_spawn.launch.py` script was configured to read `aerial_v1.urdf` but passed it to Gazebo without substituting the `__DRONE_ID__` template marker for each drone instance. As a result, the `MulticopterVelocityControl` plugin subscribed to the generic `/__DRONE_ID__/gazebo/command/twist`, while the ROS-Gazebo bridge correctly published to the namespaced topic `/sentinel_01/gazebo/command/twist`. This silent mismatch was fixed by injecting the correct `drone_id` in Python before launching the State Publisher node.
+- **Control Loop Shadowing:** In the `sim_flight_bridge.py` node, the `if self.armed:` branch was followed by an `elif self.phase == PHASE_TAKEOFF:`. Since the drone remained armed during flight, the `elif` branch was never reached, causing the control loop to forever publish zero-velocity Twist commands and hover indefinitely on the ground. Refactoring to independent `if` statements allowed the node to properly climb and navigate.
+- **Ground Truth Pose Gap:** The original URDF lacked a `PosePublisher` plugin. Gazebo Harmonic does not publish `/model/NAME/pose` automatically, meaning the ROS bridge received nothing and the drone's altitude always registered as `0.0`. Injecting `gz::sim::systems::PosePublisher` (with `use_pose_vector_msg` set to `false` for standard `geometry_msgs/msg/PoseStamped` compatibility) closed the loop, enabling accurate altitude tracking and phase transitions.
+- **XML Parsing Failures in Joint State Publisher:** The `joint_state_publisher` (which is needed to provide `0.0` angles for the continuous propeller joints to satisfy RViz) suddenly crashed with `xml.parsers.expat.ExpatError: not well-formed (invalid token)`. This was caused by standard ROS 2 CLI flags (like `--ros-args`) being accidentally placed inside an XML comment block (`<!-- ... -->`) in the URDF. The strict Python XML parser used by `joint_state_publisher` refuses double-dashes inside comments, unlike Gazebo's more lenient C++ `urdfdom` parser. Removing the double-dashes fixed the RViz TF tree errors entirely.
+
+---
 
 ## Experiment Gallery
 
-Here is a visual timeline of our physical prototyping and testing:
+### Gazebo Harmonic & RViz2 Swarm Simulation
+
+<p align="center">
+
+  <img src="assets/gazebo_rviz_success.png" width="800" />
+
+  <br><em>Sentinel Swarm taking flight in Gazebo Harmonic with fully synchronized TF tree rendering in RViz2.</em>
+
+</p>
+
+
+
+### Simulation Terminal Logs
+
+<p align="center">
+
+  <img src="assets/simulation_terminal_logs.png" width="800" />
+
+  <br><em>Backend ROS 2 launch logs confirming Gazebo bridge initialization, swarm role allocation, and ARMED → TAKEOFF phase transitions.</em>
+
+</p>
 
 ### 1. Hardware Base (Sentinel Ground Node)
 The base robotics chassis for our ground testing, outfitted with Li-ion battery management, integrated H-bridges, and an Arduino-compatible pinout to bridge commands from the companion computer.
