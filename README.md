@@ -311,5 +311,11 @@ Testing the YOLO vision engine to lock onto human targets. Swarm nodes communica
   <em>Multi-node Swarm setup: Multiple Sentinel Ground Nodes coordinating target data while streaming YOLO feeds to multiple telemetry laptops.</em>
 </p>
 
+<p align="center">
+  <img src="assets/swarm_negotiation_logs.png" width="800" />
+  <br>
+  <em>Real-time swarm negotiation terminal logs over the XBee mesh. The active node dynamically switches pursuit leadership between its own camera <code>[ self ]</code> and its peer's camera <code>[partner]</code> based on who has higher YOLO confidence, issuing <code>M,speed,dir,speed,dir</code> motor commands to maintain pursuit.</em>
+</p>
+
 ## Setup and Deployment
 *Please refer to the individual `README.md` files inside each node directory for specific hardware wiring and compilation instructions.*
