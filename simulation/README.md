@@ -6,6 +6,21 @@ This package contains everything needed to simulate the **Sentinel Aerial v1** d
 
 ## Prerequisites
 
+### Python Autonomy Dependencies
+The Python flight bridge requires several math and graphing libraries for RRT* path planning and voxel mapping. You can install them via pip (or apt if preferred):
+```bash
+pip install networkx rtree matplotlib scipy
+```
+
+### Running on Dual-GPU / Optimus Laptops (Nvidia)
+Gazebo Harmonic may default to your integrated graphics (e.g., AMD Radeon), causing massive lag or freezing with 5+ drones. To force Gazebo onto your dedicated Nvidia GPU, export these variables before launching:
+```bash
+export __NV_PRIME_RENDER_OFFLOAD=1
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json
+```
+*(Tip: You can add an alias like `alias ros2_nvidia="..."` to your `~/.bashrc` to make this easier!)*
+
 ```bash
 # ROS2 Jazzy + Gazebo Harmonic
 sudo apt install ros-jazzy-desktop ros-jazzy-ros-gz ros-jazzy-robot-state-publisher
@@ -38,14 +53,15 @@ sentinel_aerial_v1
 ├── prop_fl/fr/rl/rr   (4× 5045 tri-blade props — continuous joints, spin in sim)
 ├── esp32_fc           (ESP32-S31 flight controller board)
 ├── rpi5               (Raspberry Pi 5 companion computer, stacked above FC)
-├── imu_link           (MPU6050 — wired to Gazebo IMU sensor plugin @ 1000Hz)
+├── imu_link           (MPU6050 — Gazebo IMU sensor plugin @ 200Hz)
 ├── camera_link        (USB webcam — 1280×720, 30fps, 69° FOV, 15° downward tilt)
 ├── camera_optical_link (ROS optical frame convention)
+├── lidar_link         (simulated 360° horizontal GPU LiDAR — 720 rays, 10Hz)
 ├── lora_module        (LoRa SX1262 with stub antenna)
 └── battery            (4S 3300mAh LiPo — slung below frame as ballast)
 ```
 
-**Total mass (URDF):** `0.320 + 4×0.020 + 4×0.030 + 4×0.008 + 0.010 + 0.046 + 0.040 + 0.008 + 0.290 = ~0.966 kg`
+**Total mass (URDF):** `0.320 + 4×0.020 + 4×0.030 + 4×0.008 + 0.010 + 0.046 + 0.002 + 0.040 + 0.008 + 0.003 + 0.290 + 0.025 = 0.976 kg`
 
 ---
 
@@ -77,12 +93,14 @@ ros2 launch sentinel_sim aerial_v1_spawn.launch.py \
 
 ## ROS2 Topics Published Per Drone
 
-Each drone spawned as `sentinel_NN` publishes on namespace `/sentinel/sentinel_NN/`:
+Gazebo sensor bridges use `/sentinel_NN/`; the ROS flight bridge and robot state
+publisher nodes run under `/sentinel/sentinel_NN/`:
 
 | Topic | Type | Description |
 |-------|------|-------------|
-| `/sentinel/imu` | `sensor_msgs/Imu` | MPU6050 IMU data (1000Hz, with noise) |
-| `/sentinel/camera/image_raw` | `sensor_msgs/Image` | USB webcam feed (720p, 30fps) |
+| `/sentinel_NN/imu` | `sensor_msgs/Imu` | Per-drone IMU data (200Hz, with noise) |
+| `/sentinel_NN/camera/image_raw` | `sensor_msgs/Image` | Per-drone USB webcam feed (720p, 30fps) |
+| `/sentinel_NN/lidar/scan` | `sensor_msgs/LaserScan` | Per-drone oblique 360° range scan (10Hz, 20m) |
 | `/model/sentinel_NN/pose` | `geometry_msgs/PoseStamped` | Drone 6-DoF pose in world frame |
 | `/clock` | `rosgraph_msgs/Clock` | Simulation time |
 
@@ -98,6 +116,14 @@ Each drone spawned as `sentinel_NN` publishes on namespace `/sentinel/sentinel_N
 - 🚨 **Casualty target** — static human figure lying partially hidden behind rubble (tests YOLO occlusion robustness)
 - 🌫️ **Fog** — simulates smoke-filled disaster environment
 - 💡 **Low ambient lighting** — simulates overcast disaster conditions
+
+The simulation bridge uses a terracotta image color mask to confirm a visible
+casualty. It uses the known SDF location as a localization proxy because this
+sensor publishes RGB without depth; it does not run the Jetson TensorRT detector.
+The planner treats unobserved voxels as blocked and only routes through LiDAR
+ray-cleared space. Search altitude matches the planar scanner slice.
+Simulated battery drains with distance flown (nominal 1,000m range); at 20% the
+bridge returns to its launch position, descends, and disarms.
 
 ---
 

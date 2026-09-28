@@ -147,7 +147,7 @@ def build_sentinel_behavior_tree() -> BehaviorNode:
 
     # --- Low battery check ---
     low_battery = Sequence([
-        Condition(lambda s, sw: s.battery_pct < 0.15),
+        Condition(lambda s, sw: s.battery_pct <= 0.20),
         Action(lambda s, sw: (
             setattr(s, 'role', DroneRole.RTB),
             BehaviorStatus.SUCCESS

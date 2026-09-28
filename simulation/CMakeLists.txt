@@ -11,7 +11,6 @@ install(DIRECTORY
   launch
   urdf
   worlds
-  rviz
   config
   DESTINATION share/${PROJECT_NAME}
 )
@@ -19,6 +18,13 @@ install(DIRECTORY
 install(PROGRAMS
   scripts/sim_flight_bridge.py
   DESTINATION lib/${PROJECT_NAME}
+)
+
+# The installed flight bridge imports these modules at runtime. Keep them next
+# to the executable so the bridge can resolve aerial_node_v2 after colcon install.
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../aerial_node_v2/"
+  DESTINATION lib/${PROJECT_NAME}/aerial_node_v2
+  FILES_MATCHING PATTERN "*.py"
 )
 
 ament_package()

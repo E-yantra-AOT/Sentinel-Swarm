@@ -202,6 +202,7 @@ After ~8 seconds, all 5 drones arm and take off autonomously. Each drone:
 - Wire format: `CMD,pitch,roll,thrust\n` over UART 115200 to ESP32
 - IMU telemetry: `TEL,ax,ay,az,gx,gy,gz,bat_v\n` back to EKF
 - Gracefully runs in simulation mode if serial port is unavailable
+- **sim_flight_bridge.py**: Bypasses serial to output Gazebo Twist velocity commands directly to the simulated drones.
 
 ---
 
@@ -228,6 +229,9 @@ During the integration of the Gazebo Harmonic simulation, several deep physics a
 - **Control Loop Shadowing:** In the `sim_flight_bridge.py` node, the `if self.armed:` branch was followed by an `elif self.phase == PHASE_TAKEOFF:`. Since the drone remained armed during flight, the `elif` branch was never reached, causing the control loop to forever publish zero-velocity Twist commands and hover indefinitely on the ground. Refactoring to independent `if` statements allowed the node to properly climb and navigate.
 - **Ground Truth Pose Gap:** The original URDF lacked a `PosePublisher` plugin. Gazebo Harmonic does not publish `/model/NAME/pose` automatically, meaning the ROS bridge received nothing and the drone's altitude always registered as `0.0`. Injecting `gz::sim::systems::PosePublisher` (with `use_pose_vector_msg` set to `false` for standard `geometry_msgs/msg/PoseStamped` compatibility) closed the loop, enabling accurate altitude tracking and phase transitions.
 - **XML Parsing Failures in Joint State Publisher:** The `joint_state_publisher` (which is needed to provide `0.0` angles for the continuous propeller joints to satisfy RViz) suddenly crashed with `xml.parsers.expat.ExpatError: not well-formed (invalid token)`. This was caused by standard ROS 2 CLI flags (like `--ros-args`) being accidentally placed inside an XML comment block (`<!-- ... -->`) in the URDF. The strict Python XML parser used by `joint_state_publisher` refuses double-dashes inside comments, unlike Gazebo's more lenient C++ `urdfdom` parser. Removing the double-dashes fixed the RViz TF tree errors entirely.
+- **Nvidia PRIME GPU Offload Lag:** Running the 5-drone simulation on an Optimus laptop (AMD integrated + Nvidia discrete GPU) initially caused severe frame drops and freezing. Gazebo Harmonic was defaulting to the integrated Radeon graphics. Forcing it to the dedicated GPU via `__NV_PRIME_RENDER_OFFLOAD=1` and `__GLX_VENDOR_LIBRARY_NAME=nvidia` fully stabilized the frame rate.
+- **Gazebo PosePublisher Memory Crash:** The `PosePublisher` plugin repeatedly crashed the entire simulation engine with a `std::length_error` vector allocation exception on startup. This was traced to an obscure bug in Gazebo Harmonic: having `<static_publisher>true</static_publisher>` enabled while `<publish_link_pose>false</publish_link_pose>` is set (to avoid topic spam) causes the internal C++ allocator to attempt a negative-size array reservation. Disabling the static publisher flag resolved the hard crash.
+- **Voxel Map False-Obstacle Boxing:** The RRT* planner initially refused to generate search paths. The `sim_flight_bridge` was passing point clouds to the SLAM voxel map without filtering out maximum-range rays (empty space). As a result, the map treated 20m free-air LiDAR returns as solid obstacles, trapping the drone inside a virtual 20m sphere. Calculating an `np.isfinite` `hit_mask` and feeding it into the ray-casting algorithm restored proper free-space carving.
 
 ---
 

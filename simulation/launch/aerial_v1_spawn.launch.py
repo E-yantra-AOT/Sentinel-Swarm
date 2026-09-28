@@ -41,8 +41,17 @@ def compute_spawn_positions(n: int, formation: str = 'line') -> list:
     Formations:
       'line'    — drones spawn in a horizontal line, 3m apart
       'grid'    — drones spawn in a square grid, 5m apart
-      'circle'  — drones spawn on a circle of radius 8m
+      'circle'  — drones spawn on a circle with at least 3m separation
     """
+    limits = {'line': 10, 'grid': 100, 'circle': 28}
+    if formation not in limits:
+        raise ValueError(f"Unknown formation '{formation}'; choose line, grid, or circle")
+    if n < 1 or n > limits[formation]:
+        raise ValueError(
+            f"{formation} formation supports 1..{limits[formation]} drones "
+            "inside the 30 x 30 m operating area"
+        )
+
     positions = []
 
     if formation == 'line':
@@ -50,30 +59,34 @@ def compute_spawn_positions(n: int, formation: str = 'line') -> list:
             positions.append({
                 'x': -((n - 1) * 1.5) + i * 3.0,
                 'y': 0.0,
-                'z': 3.0,       # 0.5m above ground (sitting on battery)
+                'z': 0.1,       # spawn on ground
                 'yaw': 0.0,
             })
 
     elif formation == 'grid':
         cols = math.ceil(math.sqrt(n))
+        rows = math.ceil(n / cols)
+        # Keep even large demo grids inside the 30 x 30 m operating area.
+        spacing = min(5.0, 27.0 / max(cols - 1, rows - 1, 1))
         for i in range(n):
             row = i // cols
             col = i %  cols
             positions.append({
-                'x': col * 5.0 - (cols * 2.5),
-                'y': row * 5.0,
-                'z': 3.0,
+                'x': col * spacing - (cols - 1) * spacing / 2,
+                'y': row * spacing - (rows - 1) * spacing / 2,
+                'z': 0.1,
                 'yaw': 0.0,
             })
 
     elif formation == 'circle':
-        radius = max(4.0, n * 1.2)
+        min_radius_for_spacing = 3.0 / (2.0 * math.sin(math.pi / n)) if n > 2 else 0.0
+        radius = max(4.0, min_radius_for_spacing)
         for i in range(n):
             angle = (2 * math.pi / n) * i
             positions.append({
                 'x': radius * math.cos(angle),
                 'y': radius * math.sin(angle),
-                'z': 3.0,
+                'z': 0.1,
                 'yaw': angle + math.pi,   # Face inward
             })
 
@@ -178,6 +191,7 @@ def launch_setup(context, *args, **kwargs):
                 arguments  = [
                     f'/{drone_id}/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
                     f'/{drone_id}/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                    f'/{drone_id}/lidar/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
                     f'/{drone_id}/gazebo/command/twist@geometry_msgs/msg/Twist]gz.msgs.Twist',
                     f'/{drone_id}/enable@std_msgs/msg/Bool]gz.msgs.Boolean',
                     f'/model/{drone_id}/pose@geometry_msgs/msg/PoseStamped[gz.msgs.Pose',
@@ -198,18 +212,6 @@ def launch_setup(context, *args, **kwargs):
                 output     = 'screen'
             )
         )
-
-    # ── 3. Swarm State Broadcaster (publishes all drone poses on one topic) ─
-    # nodes.append(
-    #     Node(
-    #         package    = 'sentinel_sim',
-    #         executable = 'swarm_state_broadcaster',
-    #         name       = 'swarm_broadcaster',
-    #         parameters = [{'num_drones': num_drones,
-    #                        'use_sim_time': True}],
-    #         output = 'screen',
-    #     )
-    # )
 
     # ── 4. Optional RViz2 ──────────────────────────────────────────────────
     if rviz_flag:
@@ -244,11 +246,11 @@ def generate_launch_description():
         # ── Launch Arguments ───────────────────────────────────────────────
         DeclareLaunchArgument(
             'num_drones', default_value='1',
-            description='Number of Sentinel aerial drones to spawn (1-100)'
+            description='Drone count; capacity depends on formation (up to 100 in grid)'
         ),
         DeclareLaunchArgument(
             'formation', default_value='line',
-            description='Spawn formation: line | grid | circle'
+            description='Spawn formation: line (1-10), grid (1-100), or circle (1-28)'
         ),
         DeclareLaunchArgument(
             'rviz', default_value='false',

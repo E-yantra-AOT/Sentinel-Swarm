@@ -151,25 +151,92 @@ class VoxelMap:
 
     def __init__(self, map_size: float = 100.0):
         n = int(map_size / self.VOXEL_SIZE)
-        self.grid = np.zeros((n, n, n), dtype=np.uint8)
+        # -1 = never observed, 0 = lidar-cleared, 1 = lidar hit.
+        self.grid = np.full((n, n, n), -1, dtype=np.int8)
         self.origin = np.array([map_size/2, map_size/2, map_size/2])
         self._lock = threading.Lock()
 
-    def update(self, points: np.ndarray, drone_pose: Pose6DOF):
-        """Insert a point cloud into the voxel map."""
+    def update(self, points: np.ndarray, drone_pose: Pose6DOF,
+               hit_mask: Optional[np.ndarray] = None):
+        """Ray-clear observed space and mark returns occupied in world frame."""
+        if points.size == 0:
+            return
+        transform = drone_pose.as_matrix()
+        world_points = points @ transform[:3, :3].T + transform[:3, 3]
+        sensor = transform[:3, 3]
+        if hit_mask is None:
+            hit_mask = np.ones(len(world_points), dtype=bool)
+        hit_mask = np.asarray(hit_mask, dtype=bool)
+        # Carve each measured ray through observed free space. A small lateral
+        # dilation covers the angular spacing of the simulated scan.
+        free_indices = []
+        for endpoint in world_points:
+            length = float(np.linalg.norm(endpoint - sensor))
+            steps = max(1, int(length / (self.VOXEL_SIZE * 0.75)))
+            ray = sensor + (endpoint - sensor) * np.linspace(0.0, 1.0, steps, endpoint=False)[:, None]
+            free_indices.append(np.floor((ray + self.origin) / self.VOXEL_SIZE).astype(int))
+        free_indices = np.concatenate(free_indices, axis=0)
+        shape = np.asarray(self.grid.shape)
+        valid = np.all((free_indices >= 0) & (free_indices < shape), axis=1)
+        free_indices = np.unique(free_indices[valid], axis=0)
+        # Fill angular gaps between adjacent horizontal scan rays (the sensor
+        # publishes at 0.5 degrees); retain the same observed height slice.
+        if len(free_indices):
+            offsets = np.array([[dx, dy, 0] for dx in (-1, 0, 1)
+                                for dy in (-1, 0, 1)])
+            free_indices = (free_indices[:, None, :] + offsets[None, :, :]).reshape(-1, 3)
+            valid = np.all((free_indices >= 0) & (free_indices < shape), axis=1)
+            free_indices = np.unique(free_indices[valid], axis=0)
+        hit_indices = np.floor((world_points[hit_mask] + self.origin) / self.VOXEL_SIZE).astype(int)
+        valid = np.all((hit_indices >= 0) & (hit_indices < shape), axis=1)
+        hit_indices = np.unique(hit_indices[valid], axis=0)
+        if len(hit_indices):
+            offsets = np.array([[dx, dy, dz] for dx in (-1, 0, 1)
+                                for dy in (-1, 0, 1) for dz in (-1, 0, 1)])
+            hit_indices = (hit_indices[:, None, :] + offsets[None, :, :]).reshape(-1, 3)
+            valid = np.all((hit_indices >= 0) & (hit_indices < shape), axis=1)
+            hit_indices = np.unique(hit_indices[valid], axis=0)
         with self._lock:
-            for pt in points:
-                idx = ((pt + self.origin) / self.VOXEL_SIZE).astype(int)
-                if all(0 <= idx[i] < self.grid.shape[i] for i in range(3)):
-                    self.grid[idx[0], idx[1], idx[2]] = min(255, 
-                        int(self.grid[idx[0], idx[1], idx[2]]) + 10)
+            if len(free_indices):
+                self.grid[free_indices[:, 0], free_indices[:, 1], free_indices[:, 2]] = 0
+            if len(hit_indices):
+                self.grid[hit_indices[:, 0], hit_indices[:, 1], hit_indices[:, 2]] = 1
 
-    def is_occupied(self, xyz: np.ndarray, threshold: int = 50) -> bool:
-        idx = ((xyz + self.origin) / self.VOXEL_SIZE).astype(int)
-        try:
-            return int(self.grid[idx[0], idx[1], idx[2]]) > threshold
-        except IndexError:
+    def is_occupied(self, xyz: np.ndarray, threshold: int = 10) -> bool:
+        idx = np.floor((xyz + self.origin) / self.VOXEL_SIZE).astype(int)
+        if np.any(idx < 0) or np.any(idx >= np.asarray(self.grid.shape)):
             return True  # Treat out-of-bounds as occupied (safe)
+        # Unknown space is blocked: the planner may use only lidar-cleared voxels.
+        return int(self.grid[idx[0], idx[1], idx[2]]) != 0
+
+    def segment_is_free(self, start: np.ndarray, end: np.ndarray) -> bool:
+        """Check the whole segment at voxel resolution, not just its endpoint."""
+        distance = float(np.linalg.norm(end - start))
+        samples = max(2, int(distance / self.VOXEL_SIZE) + 1)
+        return not any(
+            self.is_occupied(start + (end - start) * t)
+            for t in np.linspace(0.0, 1.0, samples)
+        )
+
+    def nearby_obstacles(self, xyz: np.ndarray, radius: float = 2.0) -> List[np.ndarray]:
+        """Return occupied voxel centers near a world-frame position."""
+        center = np.floor((xyz + self.origin) / self.VOXEL_SIZE).astype(int)
+        cells = int(np.ceil(radius / self.VOXEL_SIZE))
+        low = np.maximum(center - cells, 0)
+        high = np.minimum(center + cells + 1, np.asarray(self.grid.shape))
+        with self._lock:
+            region = self.grid[low[0]:high[0], low[1]:high[1], low[2]:high[2]]
+            occupied = np.argwhere(region == 1)
+        if not len(occupied):
+            return []
+        occupied += low
+        world = occupied * self.VOXEL_SIZE - self.origin + self.VOXEL_SIZE / 2
+        distances = np.linalg.norm(world - xyz, axis=1)
+        world = world[distances <= radius]
+        # Limit the reactive field cost while preserving nearby surface coverage.
+        if len(world) > 256:
+            world = world[::int(np.ceil(len(world) / 256))]
+        return [point for point in world]
 
 
 # ---------------------------------------------------------------------------
@@ -189,61 +256,122 @@ class PathPlanner:
         self.step      = step_size
         self.max_iter  = max_iter
 
-    def _sample_free(self, bounds: float = 50.0) -> np.ndarray:
-        """Sample a random collision-free point."""
+    def _sample_free(self, bounds: np.ndarray) -> Optional[np.ndarray]:
+        """Sample a collision-free point within the operating volume."""
         for _ in range(100):
-            pt = (np.random.rand(3) - 0.5) * 2 * bounds
+            pt = np.random.uniform(bounds[0], bounds[1])
             if not self.map.is_occupied(pt):
                 return pt
-        return np.zeros(3)
+        return None
 
     def rrt_star(self, start: np.ndarray,
                  goal: np.ndarray) -> List[np.ndarray]:
-        """Returns a list of waypoints from start to goal using RRT*."""
-        nodes  = [start]
+        """Return an RRT* path, or an empty list when no safe path was found."""
+        start = np.asarray(start, dtype=float)
+        goal = np.asarray(goal, dtype=float)
+        if self.map.segment_is_free(start, goal):
+            return [start.copy(), goal.copy()]
+
+        bounds = np.array([[-14.0, -14.0, 1.5], [14.0, 14.0, 6.0]])
+        # The simulated scanner is planar. For level routes, sample in that
+        # observed slice instead of wasting samples in unobserved altitudes.
+        if abs(start[2] - goal[2]) <= 0.2:
+            bounds[:, 2] = goal[2]
+        nodes = [start]
         parent = {0: None}
-        cost   = {0: 0.0}
+        cost = {0: 0.0}
+        children = {0: set()}
 
+        connected_to_goal = []
         for _ in range(self.max_iter):
-            # Bias towards goal 10% of the time
-            if np.random.rand() < 0.1:
-                sample = goal
-            else:
-                sample = self._sample_free()
-
-            # Find nearest node
-            dists  = [np.linalg.norm(sample - n) for n in nodes]
-            near_i = int(np.argmin(dists))
-            near   = nodes[near_i]
-
-            # Steer
-            direction = sample - near
-            dist = np.linalg.norm(direction)
-            if dist > self.step:
-                new_pt = near + direction / dist * self.step
-            else:
-                new_pt = sample
-
-            if self.map.is_occupied(new_pt):
+            sample = goal if np.random.rand() < 0.15 else self._sample_free(bounds)
+            if sample is None:
                 continue
 
+            dists = np.linalg.norm(np.asarray(nodes) - sample, axis=1)
+            nearest_i = int(np.argmin(dists))
+            nearest = nodes[nearest_i]
+
+            direction = sample - nearest
+            dist = np.linalg.norm(direction)
+            if dist > self.step:
+                new_pt = nearest + direction / dist * self.step
+            else:
+                new_pt = sample.copy()
+
+            if not self.map.segment_is_free(nearest, new_pt):
+                continue
+
+            near_radius = min(2.0, max(self.step * 2, 1.5))
+            new_dists = np.linalg.norm(np.asarray(nodes) - new_pt, axis=1)
+            near_ids = np.flatnonzero(new_dists <= near_radius).tolist()
             new_i = len(nodes)
+            parent_i = nearest_i
+            best_cost = cost[nearest_i] + float(np.linalg.norm(new_pt - nearest))
+            for candidate_i in near_ids:
+                candidate = nodes[candidate_i]
+                candidate_cost = cost[candidate_i] + float(np.linalg.norm(new_pt - candidate))
+                if candidate_cost < best_cost and self.map.segment_is_free(candidate, new_pt):
+                    parent_i, best_cost = candidate_i, candidate_cost
+
             nodes.append(new_pt)
-            parent[new_i] = near_i
-            cost[new_i]   = cost[near_i] + self.step
+            parent[new_i] = parent_i
+            cost[new_i] = best_cost
+            children[new_i] = set()
+            children[parent_i].add(new_i)
 
-            # Check goal
-            if np.linalg.norm(new_pt - goal) < self.step:
-                # Trace path back
-                path = [goal]
-                idx  = new_i
-                while parent[idx] is not None:
-                    path.append(nodes[idx])
-                    idx = parent[idx]
-                path.reverse()
-                return path
+            # Rewire nearby nodes through the new, cheaper branch. Skip its ancestors.
+            ancestors = set()
+            ancestor_i = parent_i
+            while ancestor_i is not None:
+                ancestors.add(ancestor_i)
+                ancestor_i = parent[ancestor_i]
+            for candidate_i in near_ids:
+                if candidate_i == parent_i or candidate_i in ancestors:
+                    continue
+                candidate = nodes[candidate_i]
+                edge_cost = float(np.linalg.norm(candidate - new_pt))
+                if cost[new_i] + edge_cost < cost[candidate_i] and self.map.segment_is_free(new_pt, candidate):
+                    old_parent = parent[candidate_i]
+                    children[old_parent].remove(candidate_i)
+                    children[new_i].add(candidate_i)
+                    parent[candidate_i] = new_i
+                    delta = cost[new_i] + edge_cost - cost[candidate_i]
+                    stack = [candidate_i]
+                    while stack:
+                        child_i = stack.pop()
+                        cost[child_i] += delta
+                        stack.extend(children[child_i])
 
-        return [start, goal]  # Fallback: straight line
+            if self.map.segment_is_free(new_pt, goal):
+                connected_to_goal.append(new_i)
+
+        if connected_to_goal:
+            best_i = min(connected_to_goal,
+                         key=lambda i: cost[i] + float(np.linalg.norm(nodes[i] - goal)))
+            path = [goal.copy()]
+            path_i = best_i
+            while path_i is not None:
+                path.append(nodes[path_i])
+                path_i = parent[path_i]
+            path.reverse()
+            return self._shortcut_path(path)
+
+        return []
+
+    def _shortcut_path(self, path: List[np.ndarray]) -> List[np.ndarray]:
+        """Greedily remove redundant waypoints while preserving collision checks."""
+        if len(path) < 3:
+            return path
+        result = [path[0]]
+        anchor = 0
+        while anchor < len(path) - 1:
+            next_i = len(path) - 1
+            while next_i > anchor + 1 and not self.map.segment_is_free(path[anchor], path[next_i]):
+                next_i -= 1
+            result.append(path[next_i])
+            anchor = next_i
+        return result
 
     def potential_field_step(self, pos: np.ndarray, goal: np.ndarray,
                               nearby_obstacles: List[np.ndarray],
@@ -276,7 +404,9 @@ class SLAMNavigationManager:
 
     def __init__(self):
         self.ekf       = VIOFusionEKF(dt=0.005)
-        self.voxel_map = VoxelMap(map_size=100.0)
+        # The operating zone is 30m across. A 32m map at 10cm resolution uses
+        # about 33MB per drone; the former 100m map allocated 1GB per drone.
+        self.voxel_map = VoxelMap(map_size=32.0)
         self.planner   = PathPlanner(self.voxel_map)
 
         self.current_pose    : Pose6DOF           = Pose6DOF()
@@ -295,12 +425,15 @@ class SLAMNavigationManager:
     def register_vio_pose(self, pose_vec: np.ndarray):
         """Called by Isaac ROS Visual SLAM at 30Hz."""
         self.ekf.update_vio(pose_vec)
+        with self._pose_lock:
+            self.current_pose = self.ekf.current_pose
 
-    def register_lidar_frame(self, points: np.ndarray):
+    def register_lidar_frame(self, points: np.ndarray,
+                             hit_mask: Optional[np.ndarray] = None):
         """Called by Livox driver at 10Hz with new point cloud."""
         with self._pose_lock:
             pose = self.current_pose
-        self.voxel_map.update(points, pose)
+        self.voxel_map.update(points, pose, hit_mask)
 
     def plan_to(self, target_xyz: np.ndarray):
         """Compute global path to a target (e.g., a detected casualty)."""
@@ -311,6 +444,7 @@ class SLAMNavigationManager:
         print(f"[SLAM] Planning path: {start} → {target_xyz}")
         self.path_to_target = self.planner.rrt_star(start, target_xyz)
         print(f"[SLAM] Path computed: {len(self.path_to_target)} waypoints")
+        return bool(self.path_to_target)
 
     def get_next_velocity_command(self) -> Tuple[float, float, float]:
         """
@@ -334,7 +468,8 @@ class SLAMNavigationManager:
                 return (0.0, 0.0, 0.0)
             target = self.path_to_target[0]
 
-        vel = self.planner.potential_field_step(pos, target, [])
+        obstacles = self.voxel_map.nearby_obstacles(pos)
+        vel = self.planner.potential_field_step(pos, target, obstacles)
         speed = np.linalg.norm(vel)
         if speed > 1.5:   # clamp to 1.5 m/s for safety
             vel = vel / speed * 1.5

@@ -305,7 +305,7 @@
     <parent link="motor_fr"/>
     <child  link="prop_fr"/>
     <origin xyz="0 0 0.012" rpy="0 0 0"/>
-    <axis xyz="0 0 -1"/>
+    <axis xyz="0 0 1"/>
   </joint>
 
   <link name="prop_rl">
@@ -325,7 +325,7 @@
     <parent link="motor_rl"/>
     <child  link="prop_rl"/>
     <origin xyz="0 0 0.012" rpy="0 0 0"/>
-    <axis xyz="0 0 -1"/>
+    <axis xyz="0 0 1"/>
   </joint>
 
   <link name="prop_rr">
@@ -454,6 +454,30 @@
     <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708"/>
   </joint>
 
+  <!-- Horizontal 2D LiDAR used by the simulation voxel mapper -->
+  <link name="lidar_link">
+    <inertial>
+      <mass value="0.025"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0"
+               iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.018" length="0.020"/></geometry>
+      <material name="camera_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.018" length="0.020"/></geometry>
+    </collision>
+  </link>
+  <joint name="joint_lidar" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0 0 0.035" rpy="0 0 0"/>
+  </joint>
+
 
   <!-- 
        LoRa SX1262 MODULE (rear-right of frame, antenna pointing up)
@@ -535,9 +559,9 @@
   <gazebo reference="imu_link">
     <sensor name="imu_sensor" type="imu">
       <always_on>true</always_on>
-      <update_rate>1000</update_rate>
+      <update_rate>200</update_rate>
       <visualize>false</visualize>
-      <topic>/sentinel/imu</topic>
+      <topic>__DRONE_ID__/imu</topic>
       <imu>
         <angular_velocity>
           <x><noise type="gaussian"><mean>0</mean><stddev>0.0003</stddev></noise></x>
@@ -559,7 +583,7 @@
       <always_on>true</always_on>
       <update_rate>30</update_rate>
       <visualize>true</visualize>
-      <topic>/sentinel/camera/image_raw</topic>
+      <topic>__DRONE_ID__/camera/image_raw</topic>
       <camera>
         <horizontal_fov>1.204</horizontal_fov>  <!-- ~69° FOV, typical USB webcam -->
         <image>
@@ -580,12 +604,44 @@
     </sensor>
   </gazebo>
 
+  <gazebo reference="lidar_link">
+    <sensor name="sim_lidar" type="gpu_lidar">
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <visualize>false</visualize>
+      <topic>__DRONE_ID__/lidar/scan</topic>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>720</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159265</min_angle>
+            <max_angle>3.14159265</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.25</min>
+          <max>20.0</max>
+          <resolution>0.05</resolution>
+        </range>
+      </ray>
+    </sensor>
+  </gazebo>
+
   <!-- Quadrotor Physics Plugin (Gazebo harmonic / Ignition) -->
   
   <gazebo>
     <plugin filename="libgz-sim-multicopter-motor-model-system.so"
             name="gz::sim::systems::MulticopterMotorModel">
       <robotNamespace>__DRONE_ID__</robotNamespace>
+      <motorType>velocity</motorType>
+      <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       
       <jointName>joint_prop_fl</jointName>
       <linkName>prop_fl</linkName>
@@ -593,7 +649,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1100</maxRotVelocity>
-      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
       <motorConstant>8.54858e-06</motorConstant>
       <momentConstant>0.016</momentConstant>
       <actuator_number>0</actuator_number>
@@ -606,6 +662,8 @@
     <plugin filename="libgz-sim-multicopter-motor-model-system.so"
             name="gz::sim::systems::MulticopterMotorModel">
       <robotNamespace>__DRONE_ID__</robotNamespace>
+      <motorType>velocity</motorType>
+      <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       
       <jointName>joint_prop_fr</jointName>
       <linkName>prop_fr</linkName>
@@ -613,7 +671,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1100</maxRotVelocity>
-      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
       <motorConstant>8.54858e-06</motorConstant>
       <momentConstant>0.016</momentConstant>
       <actuator_number>1</actuator_number>
@@ -626,6 +684,8 @@
     <plugin filename="libgz-sim-multicopter-motor-model-system.so"
             name="gz::sim::systems::MulticopterMotorModel">
       <robotNamespace>__DRONE_ID__</robotNamespace>
+      <motorType>velocity</motorType>
+      <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       
       <jointName>joint_prop_rl</jointName>
       <linkName>prop_rl</linkName>
@@ -633,7 +693,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1100</maxRotVelocity>
-      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
       <motorConstant>8.54858e-06</motorConstant>
       <momentConstant>0.016</momentConstant>
       <actuator_number>2</actuator_number>
@@ -646,6 +706,8 @@
     <plugin filename="libgz-sim-multicopter-motor-model-system.so"
             name="gz::sim::systems::MulticopterMotorModel">
       <robotNamespace>__DRONE_ID__</robotNamespace>
+      <motorType>velocity</motorType>
+      <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       
       <jointName>joint_prop_rr</jointName>
       <linkName>prop_rr</linkName>
@@ -653,7 +715,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1100</maxRotVelocity>
-      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
       <motorConstant>8.54858e-06</motorConstant>
       <momentConstant>0.016</momentConstant>
       <actuator_number>3</actuator_number>
@@ -672,9 +734,12 @@
       <commandSubTopic>gazebo/command/twist</commandSubTopic>
       <enableSubTopic>enable</enableSubTopic>
       <comLinkName>base_link</comLinkName>
-      <velocityGain>20.0 20.0 20.0</velocityGain>
-      <attitudeGain>1.0 1.5 0.075</attitudeGain>
-      <angularRateGain>0.4 0.52 0.18</angularRateGain>
+      <velocityGain>6.0 6.0 10.0</velocityGain>
+      <attitudeGain>0.2 0.2 0.02</attitudeGain>
+      <angularRateGain>0.05 0.05 0.02</angularRateGain>
+      <maximumLinearAcceleration>15 15 15</maximumLinearAcceleration>
+      <maximumLinearVelocity>5 5 5</maximumLinearVelocity>
+      <maximumAngularVelocity>3 3 3</maximumAngularVelocity>
       <rotorConfiguration>
         <rotor>
           <jointName>joint_prop_fl</jointName>
@@ -706,12 +771,14 @@
     <!-- Publish ground truth pose for simulation feedback -->
     <plugin filename="libgz-sim-pose-publisher-system.so"
             name="gz::sim::systems::PosePublisher">
-      <publish_link_pose>true</publish_link_pose>
+      <update_frequency>20</update_frequency>
+      <!-- Avoid PosePublisher's dynamic-joint cache; the flight bridge only
+           consumes this model's world pose, not propeller/joint transforms. -->
+      <static_publisher>false</static_publisher>
+      <publish_link_pose>false</publish_link_pose>
+      <publish_model_pose>true</publish_model_pose>
+      <publish_nested_model_pose>false</publish_nested_model_pose>
       <use_pose_vector_msg>false</use_pose_vector_msg>
-      <static_publisher>true</static_publisher>
-      <static_update_frequency>20</static_update_frequency>
     </plugin>
   </gazebo>
 </robot>
-
-
