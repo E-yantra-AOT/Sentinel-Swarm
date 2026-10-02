@@ -10,7 +10,7 @@
  */
 
 // ── Candidate STBY pins (try all to be safe) ──────────────────────
-// On most Custom Motor Driver boards STBY is hardwired HIGH,
+// On most AlphaBot2-Ar boards STBY is hardwired HIGH,
 // but some revisions connect it to an Arduino pin.
 #define STBY_CANDIDATES_COUNT 4
 const int STBY_CANDIDATES[] = {3, 8, 12, 13};

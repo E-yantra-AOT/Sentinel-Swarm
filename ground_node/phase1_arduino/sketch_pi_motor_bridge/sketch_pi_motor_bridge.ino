@@ -4,7 +4,7 @@
  *
  * Purpose:
  *   Receives ASCII motor commands from the Raspberry Pi over USB serial
- *   and drives the Custom Motor Driver motors (TB6612FNG via proper dual-direction pins).
+ *   and drives the AlphaBot2-Ar motors (TB6612FNG via proper dual-direction pins).
  *
  * Command Protocol (Pi → Arduino, 115200 baud, newline terminated):
  *   M,<leftSpeed>,<leftDir>,<rightSpeed>,<rightDir>
@@ -12,7 +12,7 @@
  *   leftSpeed / rightSpeed : 0–255
  *   leftDir  / rightDir   : F (forward) | B (backward)
  *
- * Hardware (Verified via Custom Motor Driver jumper matrix):
+ * Hardware (Verified via AlphaBot2-Ar jumper matrix):
  *   Motor A (Left)  — PWM: D6, AIN1: A1, AIN2: A0
  *   Motor B (Right) — PWM: D5, BIN1: A2, BIN2: A3
  */

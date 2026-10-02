@@ -54,11 +54,13 @@ CAMERA_DEVICE = 0
 YOLO_MODEL_DIR = os.path.expanduser('~/yolo11n_ncnn_model')
 
 # ── Motor Control ─────────────────────────────────────────────────────────────
-MIN_SPEED    = 80
-MAX_SPEED    = 200
-KP_TURN      = 220.0
-DEADZONE_START = 0.08
-DEADZONE_STOP  = 0.04
+MIN_SPEED    = 55
+MAX_SPEED    = 120
+KP_TURN      = 250.0
+INVERT_RIGHT_MOTOR = True
+INVERT_LEFT_MOTOR = False
+DEADZONE_START = 0.20
+DEADZONE_STOP  = 0.12
 
 # Scan sweep speed (used when no target in entire swarm)
 SCAN_SPEED = 70
@@ -80,7 +82,12 @@ def init_serial(port, baud):
 
 
 def send_motor(ser, lspeed, ldir, rspeed, rdir) -> str:
-    cmd = f"M,{lspeed},{ldir},{rspeed},{rdir}\n"
+    if INVERT_LEFT_MOTOR:
+        ldir = 'B' if ldir == 'F' else 'F'
+    if INVERT_RIGHT_MOTOR:
+        rdir = 'B' if rdir == 'F' else 'F'
+        
+    cmd = f"M,{int(lspeed)},{ldir},{int(rspeed)},{rdir}\n"
     if ser:
         try:
             ser.write(cmd.encode('ascii'))

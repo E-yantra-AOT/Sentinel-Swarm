@@ -71,7 +71,7 @@ void setup() {
 
   // ── Motor A candidates (PWM always D5, try different AIN1/AIN2 pairs) ──
   Serial.println("[MOTOR A — PWM=D5]");
-  tryMotorA(4, 3, 5, "AIN1=D4 AIN2=D3");   // most likely on Custom Motor Driver
+  tryMotorA(4, 3, 5, "AIN1=D4 AIN2=D3");   // most likely on AlphaBot2-Ar
   tryMotorA(3, 4, 5, "AIN1=D3 AIN2=D4");   // reversed
   tryMotorA(4, 2, 5, "AIN1=D4 AIN2=D2");
   tryMotorA(4, 8, 5, "AIN1=D4 AIN2=D8");
