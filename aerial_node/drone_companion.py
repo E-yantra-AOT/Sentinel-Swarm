@@ -44,6 +44,10 @@
 import sys
 import os
 import time
+import http.server
+import socketserver
+import io
+from PIL import Image
 import math
 import threading
 import argparse
@@ -454,6 +458,16 @@ class VisionEngine:
                 continue
 
             detections = yolo.detect(frame)
+            
+            with stream_state.lock:
+                disp = frame.copy()
+                cv2.line(disp, (frame_w//2, 0), (frame_w//2, frame_h), (0,255,0), 1)
+                cv2.line(disp, (0, frame_h//2), (frame_w, frame_h//2), (0,255,0), 1)
+                for d in detections:
+                    cx, cy = int(d.norm_cx * frame_w), int(d.norm_cy * frame_h)
+                    cv2.circle(disp, (cx, cy), 15, (0,0,255), 2)
+                    cv2.putText(disp, f"CASUALTY {d.confidence:.2f}", (cx-20, cy-20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+                stream_state.frame = disp
             persons    = [d for d in detections if d.class_id == 0]
 
             if persons:
@@ -826,4 +840,55 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# =============================================================================
+# MJPEG Debug Stream Server
+# =============================================================================
+class StreamState:
+    def __init__(self):
+        self.frame = None
+        self.lock = threading.Lock()
+
+stream_state = StreamState()
+
+class StreamingHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Age', 0)
+            self.send_header('Cache-Control', 'no-cache, private')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
+            self.end_headers()
+            try:
+                while True:
+                    with stream_state.lock:
+                        frame = stream_state.frame
+                    if frame is not None:
+                        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        img = Image.fromarray(rgb)
+                        buf = io.BytesIO()
+                        img.save(buf, format='JPEG', quality=60)
+                        buf_bytes = buf.getvalue()
+
+                        self.wfile.write(b'--FRAME\r\n')
+                        self.send_header('Content-Type', 'image/jpeg')
+                        self.send_header('Content-Length', len(buf_bytes))
+                        self.end_headers()
+                        self.wfile.write(buf_bytes)
+                        self.wfile.write(b'\r\n')
+                    time.sleep(0.05)
+            except Exception as e:
+                pass
+        else:
+            self.send_error(404)
+            self.end_headers()
+
+def stream_thread_func(port=5000):
+    server = socketserver.ThreadingTCPServer(('0.0.0.0', port), StreamingHandler)
+    server.serve_forever()
+
+t_stream = threading.Thread(target=stream_thread_func, daemon=True)
+t_stream.start()
 
