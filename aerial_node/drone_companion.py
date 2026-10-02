@@ -86,8 +86,8 @@ log = logging.getLogger(__name__)
 # =============================================================================
 
 # Hardware ports
-FC_SERIAL_PORT   = '/dev/serial0'      # Pi GPIO14/15 → FC UART1
-FC_BAUD_RATE     = 921600              # Must match SERIAL1_BAUD=921 in ArduPilot
+FC_SERIAL_PORT   = '/dev/ttyACM0'      # FC connected via USB Type-C      # Pi GPIO14/15 → FC UART1
+FC_BAUD_RATE     = 115200              # Standard baud for ArduPilot USB (MAVLink)              # Must match SERIAL1_BAUD=921 in ArduPilot
 XBEE_PORT        = '/dev/ttyUSB0'      # USB XBee module
 CAMERA_DEVICE    = 0                   # /dev/video0
 
@@ -826,3 +826,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

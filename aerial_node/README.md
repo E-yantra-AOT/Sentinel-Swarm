@@ -5,7 +5,7 @@
 | Component | Part | Interface |
 |---|---|---|
 | Companion Computer | Raspberry Pi 5 (8GB RAM, 64GB SD) | — |
-| Flight Controller | MicoAir H743 V2 (STM32H743, ArduPilot) | UART1 @ 921600 |
+| Flight Controller | MicoAir H743 V2 (STM32H743, ArduPilot) | USB (Type-C) @ 115200 |
 | ESC | 55A AM32 (4-in-1, integrated with FC) | DShot/PWM from FC |
 | GPS | u-blox NEO-6M | FC UART3 @ 38400 |
 | IMU | BMI088 + BMI270 (onboard FC) | FC internal |
@@ -35,8 +35,7 @@
 Connect FC to laptop via USB, open Mission Planner → Full Parameter List:
 
 ```
-SERIAL1_PROTOCOL = 2      ← MAVLink 2 (NOT 1)
-SERIAL1_BAUD     = 921    ← 921,600 baud
+SERIAL0_PROTOCOL = 2      ? MAVLink 2 (USB port is SERIAL0)
 SERIAL3_PROTOCOL = 5      ← GPS
 SERIAL3_BAUD     = 38     ← 38,400 (configure NEO-6M to match)
 SYSID_MYGCS      = 255    ← Pi 5 is the GCS
@@ -167,3 +166,4 @@ DISARMED ──(GPS fix ≥ 3D)──► ARMED ──(ESC spinup)──► TAKEO
 | `aerial_fc.ino` | ESP32 FC firmware (legacy, replaced by MicoAir H743) |
 | `aerial_vision_node.py` | Vision-only stub (for testing without FC) |
 | `Pi5_Advanced_Vision_Architecture.md` | Research notes on vision stack |
+
