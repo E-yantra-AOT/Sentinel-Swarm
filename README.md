@@ -1,9 +1,9 @@
-# Sentinel Swarm — GPS-Denied Disaster Management Drone Swarm
+# Sentinel Swarm: GPS-Denied Disaster Management Drone Swarm
 
-**Sentinel** is a fully custom-built, dual-layer autonomous swarm system for **GPS-denied disaster management**. It pairs a quadrotor aerial node with ground robots, coordinating via a LoRa/XBee mesh to search disaster zones, detect casualties using onboard AI, and relay positions back to a command center — all without GPS or external infrastructure.
-
-Built entirely from scratch for a hackathon, with no black-box commercial flight controllers.
-
+**Sentinel** is a highly advanced, fully custom-built **IoRT (Internet of Robotic Things)** and **Edge AI** swarm system engineered for GPS-denied disaster management. 
+Built entirely from scratch for hackathon without relying on black-box commercial flight controllers (no ArduPilot or Pixhawk), Sentinel deploys a decentralized, dual-layer architecture pairing a quadrotor aerial node with ground-based Sentinel robots.
+Operating strictly on the edge, the swarm coordinates via a self-healing **LoRa/XBee M2M mesh network**. It leverages **Monocular SLAM**, **3D Voxel Ray-Casting**, and **RT-DETR/YOLO11n Edge Vision** to autonomously map disaster zones, detect casualties under heavy occlusion, and dynamically elect pursuit leaders using a **Weighted Borda Count Swarm Intelligence** protocol. 
+The entire physical architecture is also backed by a highly accurate **Gazebo Harmonic Digital Twin** to prove multi-agent scalability.
 
 ---
 
@@ -11,27 +11,27 @@ Built entirely from scratch for a hackathon, with no black-box commercial flight
 
 ```mermaid
 flowchart TD
-    subgraph AERIAL["🚁 Aerial Node v2 (Raspberry Pi 5 + ESP32-S31 FC)"]
+    subgraph AERIAL["Aerial Node v2 (Raspberry Pi 5 + ESP32-S31 FC)"]
         direction TB
-        CAM["📷 USB Webcam\n1280×720 30fps"] --> SLAM["🗺️ Monocular SLAM\nEKF 9-state\n+ RRT* Planner"]
+        CAM["USB Webcam\n1280×720 30fps"] --> SLAM["Monocular SLAM\nEKF 9-state\n+ RRT* Planner"]
         IMU_HW["MPU6050 IMU\n800Hz Mahony AHRS"] --> SLAM
-        CAM --> VISION["🤖 YOLO11n NCNN\nCasualty Detection\nFP16 CPU"]
-        THERMAL["🌡️ (Thermal — future)"] --> VISION
-        VISION --> FUSION["🔀 Triage Engine\nMOBILE / IMMOBILE\n/ CRITICAL"]
-        SLAM --> PLANNER["📍 RRT* + Potential Field\nObstacle Avoidance"]
+        CAM --> VISION["YOLO11n NCNN\nCasualty Detection\nFP16 CPU"]
+        THERMAL["(Thermal — future)"] --> VISION
+        VISION --> FUSION["Triage Engine\nMOBILE / IMMOBILE\n/ CRITICAL"]
+        SLAM --> PLANNER["RRT* + Potential Field\nObstacle Avoidance"]
         FUSION --> PLANNER
-        LORA["📻 LoRa SX1262\n868MHz Mesh"] --> SWARM_MGR["🐝 Swarm Manager\nBehavior Tree\nVoronoi Zones\nReynolds Flocking"]
+        LORA["LoRa SX1262\n868MHz Mesh"] --> SWARM_MGR["Swarm Manager\nBehavior Tree\nVoronoi Zones\nReynolds Flocking"]
         SWARM_MGR --> PLANNER
         PLANNER --> FC_BRIDGE["🔌 Flight Bridge\nUART 115200\n→ ESP32-S31"]
     end
 
-    subgraph FC["⚡ ESP32-S31 Flight Controller (800Hz FreeRTOS)"]
+    subgraph FC["ESP32-S31 Flight Controller (800Hz FreeRTOS)"]
         FC_BRIDGE --> PID["Cascaded PID\nAngle → Rate"]
         PID --> MOTORS["4× BLHeli ESC\n→ 2306 Motors"]
         PID --> TELEM["IMU Telemetry\n→ Pi EKF"]
     end
 
-    subgraph SIM["🖥️ Gazebo Harmonic Simulation"]
+    subgraph SIM["Gazebo Harmonic Simulation"]
         GZ_WORLD["disaster_zone.sdf\n30×30m Rubble + Fog\nCasualty Mannequin"]
         GZ_DRONE["aerial_v1 URDF\n951g Quad\n4× Motor Plugins\nIMU + Camera"]
         GZ_BRIDGE["ros_gz_bridge\nROS2 ↔ Gazebo\nTopics"]
@@ -39,15 +39,15 @@ flowchart TD
         GZ_WORLD --> GZ_DRONE --> GZ_BRIDGE --> SIM_AUTONOMY
     end
 
-    subgraph GROUND["🤖 Ground Node (Raspberry Pi 4)"]
-        PI_CAM["📷 Camera"] --> YOLO["YOLO11n NCNN\nPerson Tracking"]
+    subgraph GROUND["Ground Node (Raspberry Pi 4)"]
+        PI_CAM["Camera"] --> YOLO["YOLO11n NCNN\nPerson Tracking"]
         YOLO --> NEGOTIATOR["Phase 7 Swarm\nWeighted Borda Count\nLeader Election 100ms"]
         NEGOTIATOR --> ARDUINO["Arduino Bridge\nMotor Commands"]
-        XBEE["📡 XBee PRO S2C\nMesh Telemetry"] --> NEGOTIATOR
+        XBEE["XBee PRO S2C\nMesh Telemetry"] --> NEGOTIATOR
         ARDUINO --> WHEELS["Differential Drive"]
     end
 
-    LORA_LINK(["☁️ LoRa Swarm Mesh\n868MHz"])
+    LORA_LINK(["LoRa Swarm Mesh\n868MHz"])
     AERIAL <-->|"Casualty XYZ\nDrone Roles\nVoronoi Zones"| LORA_LINK
     GROUND <-->|"XBee JSON\nConfidence + Target"| LORA_LINK
 ```
