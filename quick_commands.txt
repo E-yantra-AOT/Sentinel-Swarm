@@ -1,0 +1,38 @@
+# =============================================================================
+# Quick Command Reference for Sentinel Swarm
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. GROUND BOT A (pi@10.219.37.74)
+# -----------------------------------------------------------------------------
+# Start Bot A (with stream)
+ssh -o StrictHostKeyChecking=no pi@10.219.37.74 "PYTHONUNBUFFERED=1 ~/swarm_venv/bin/python ~/phase7_swarm_tracker.py --id A --stream"
+
+# Stream URL:
+http://10.219.37.74:5000
+
+# -----------------------------------------------------------------------------
+# 2. GROUND BOT B (pi2@10.219.37.184)
+# -----------------------------------------------------------------------------
+# Start Bot B (with stream)
+ssh -o StrictHostKeyChecking=no pi2@10.219.37.184 "PYTHONUNBUFFERED=1 ~/swarm_venv/bin/python ~/phase7_swarm_tracker.py --id B --stream"
+
+# Stream URL:
+http://10.219.37.184:5000
+
+# -----------------------------------------------------------------------------
+# 3. AERIAL DRONE (pi3@10.219.37.160)
+# -----------------------------------------------------------------------------
+# Start Drone (stream is always enabled on port 5000)
+ssh -o StrictHostKeyChecking=no pi3@10.219.37.160 "PYTHONUNBUFFERED=1 ~/drone_venv/bin/python ~/Noob/aerial_node/drone_companion.py"
+
+# Stream URL:
+http://10.219.37.160:5000
+
+# -----------------------------------------------------------------------------
+# 4. EMERGENCY KILL ALL BOTS
+# -----------------------------------------------------------------------------
+ssh pi@10.219.37.74 "pkill -f phase7_swarm_tracker"
+ssh pi2@10.219.37.184 "pkill -f phase7_swarm_tracker"
+ssh pi3@10.219.37.160 "pkill -f drone_companion.py"
+

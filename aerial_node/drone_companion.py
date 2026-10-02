@@ -813,35 +813,6 @@ class DroneController:
 # Entry Point
 # =============================================================================
 
-def main():
-    parser = argparse.ArgumentParser(description='Sentinel Drone Companion Computer')
-    parser.add_argument('--sim',      action='store_true',
-                        help='Simulation mode — no real FC connection')
-    parser.add_argument('--no-xbee', action='store_true',
-                        help='Disable XBee (solo mode, no swarm comms)')
-    parser.add_argument('--alt',     type=float, default=CRUISE_ALT,
-                        help=f'Cruise altitude in metres (default: {CRUISE_ALT})')
-    parser.add_argument('--verbose', action='store_true',
-                        help='Enable debug logging')
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    controller = DroneController(args)
-    try:
-        controller.run()
-    except KeyboardInterrupt:
-        log.info("\n[Main] Ctrl+C — initiating safe RTL...")
-        controller.fc.rtl()
-        time.sleep(2.0)
-        log.info("[Main] Shutdown complete.")
-
-
-if __name__ == '__main__':
-    main()
-
-
 # =============================================================================
 # MJPEG Debug Stream Server
 # =============================================================================
@@ -891,4 +862,44 @@ def stream_thread_func(port=5000):
 
 t_stream = threading.Thread(target=stream_thread_func, daemon=True)
 t_stream.start()
+
+def main():
+    parser = argparse.ArgumentParser(description='Sentinel Drone Companion Computer')
+    parser.add_argument('--sim',      action='store_true',
+                        help='Simulation mode — no real FC connection')
+    parser.add_argument('--no-xbee', action='store_true',
+                        help='Disable XBee (solo mode, no swarm comms)')
+    parser.add_argument('--alt',     type=float, default=CRUISE_ALT,
+                        help=f'Cruise altitude in metres (default: {CRUISE_ALT})')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Enable debug logging')
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    controller = DroneController(args)
+    try:
+        controller.run()
+    except KeyboardInterrupt:
+        log.info("\n[Main] Ctrl+C — initiating safe RTL...")
+        controller.fc.rtl()
+        time.sleep(2.0)
+        log.info("[Main] Shutdown complete.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+if __name__ == '__main__':
+    main()
+
 
