@@ -40,6 +40,20 @@
 import sys
 import os
 import time
+import atexit
+
+def emergency_shutdown():
+    try:
+        from pymavlink import mavutil
+        print("
+[SAFETY] Forcing motors to 0 and disarming FC...")
+        master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+        master.mav.rc_channels_override_send(master.target_system, master.target_component, 1500, 1500, 1000, 1500, 0, 0, 0, 0)
+        master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 0, 21196, 0, 0, 0, 0, 0)
+    except:
+        pass
+
+atexit.register(emergency_shutdown)
 import http.server
 import socketserver
 import io
@@ -84,7 +98,7 @@ CONF_THRESH    = 0.4
 STREAM_PORT    = 5000
 ROBOT_ID       = "DRONE"
 
-CRUISE_ALT     = 2.0    # meters (barometer-based)
+CRUISE_ALT     = 0.5    # meters (barometer-based)
 HOVER_THROTTLE = 1550   # RC value for hover (tune this for your drone!)
 TAKEOFF_THR    = 1650   # RC value for climb
 LAND_THR       = 1420   # RC value for descent
@@ -280,6 +294,7 @@ def main():
     hover_start  = None
     lost_frames  = 0
     last_arm_time = 0
+    last_broadcast = 0
 
     log.info("\n[Nav] Control loop started. Open http://10.219.37.160:5000\n")
 
@@ -316,8 +331,8 @@ def main():
                 
             fc.rc_override(throttle=TAKEOFF_THR)
             
-            # Transition to searching if we reach altitude OR if 3 seconds pass (for desk testing without props)
-            if alt >= cruise_alt * 0.85 or (time.time() - fc.takeoff_start_time > 3.0):
+            # Transition to searching if we reach altitude OR if 10 seconds pass
+            if alt >= cruise_alt * 0.85 or (time.time() - fc.takeoff_start_time > 10.0):
                 state = State.SEARCHING
                 log.info(f"[State] TAKEOFF → SEARCHING (alt={alt:.1f}m)")
 
@@ -372,14 +387,16 @@ def main():
         elif state == State.HOVERING:
             fc.rc_override(throttle=HOVER_THROTTLE)
             if detections and xbee:
-                d = detections[0]
-                payload = {'r': ROBOT_ID, 'cx': round(d.norm_cx, 3),
-                           'cy': round(d.norm_cy, 3), 'cf': round(d.confidence, 3),
-                           'sz': round((d.bbox_width/w) * (d.bbox_height/h), 4), 'st': 'L'}
-                try:
-                    xbee.send(payload)
-                except Exception:
-                    pass
+                if time.time() - last_broadcast >= 0.5:  # Rate limit to 2Hz
+                    d = detections[0]
+                    payload = {'r': ROBOT_ID, 'cx': round(d.norm_cx, 3),
+                               'cy': round(d.norm_cy, 3), 'cf': round(d.confidence, 3),
+                               'sz': round((d.bbox_width/w) * (d.bbox_height/h), 4), 'st': 'L'}
+                    try:
+                        xbee.send(payload)
+                        last_broadcast = time.time()
+                    except Exception:
+                        pass
             if not detections:
                 state = State.SEARCHING
                 log.info("[State] HOVERING → SEARCHING (target lost)")
@@ -407,11 +424,22 @@ def main():
 
         log.info(f"[{state.value}] alt={alt:.1f}m armed={armed} dets={len(detections)}")
 
-        # Receive XBee
+        
+        # Receive XBee from Ground Bots
         if xbee:
-            msg = xbee.recv_nonblocking() if hasattr(xbee, 'recv_nonblocking') else None
-            if msg and msg.get('r') != ROBOT_ID:
-                log.info(f"[Swarm] {msg.get('r')} → target cx={msg.get('cx')} cf={msg.get('cf')}")
+            try:
+                msg = xbee.recv()
+                if msg and msg.get('r') != ROBOT_ID:
+                    sender = msg.get('r', 'Unknown')
+                    cf = msg.get('cf', 0.0)
+                    cx = msg.get('cx', 0.0)
+                    log.info(f"[Swarm Comms] Received detection from {sender}: cx={cx}, confidence={cf}")
+                    
+                    # Swarm Decision Logic
+                    if state == State.SEARCHING and cf > 0.6:
+                        log.info(f"[Swarm Decision] {sender} found a casualty! Pivoting drone to assist...")
+            except Exception as e:
+                pass
 
 if __name__ == '__main__':
     try:
