@@ -2,6 +2,11 @@
 
 **Sentinel** is an **IoRT (Internet of Robotic Things)** and **Edge AI** swarm system engineered for GPS-denied disaster management. It deploys a decentralized, heterogeneous architecture pairing a quadrotor aerial node with two AlphaBot2-Ar ground robots, all coordinating over a self-healing **XBee RF mesh network**.
 
+<p align="center">
+  <img src="assets/full_swarm_all_robots.jpg" width="850" />
+  <br><em><b>Physical Heterogeneous Swarm Fleet</b>: Central quadrotor aerial platform flanked by the dual AlphaBot2-Ar ground nodes.</em>
+</p>
+
 The project is structured in three tiers:
 
 | Tier | Status | Description |
@@ -321,33 +326,41 @@ ssh -t -o StrictHostKeyChecking=no pi3@10.219.37.160 "source ~/drone_venv/bin/ac
 
 ## Experiment Gallery
 
-### Gazebo Harmonic & RViz2 Swarm Simulation
+### 1. Physical Heterogeneous Swarm Fleet
 
 <p align="center">
-  <img src="assets/gazebo_rviz_success.png" width="800" />
-  <br><em>Sentinel Swarm taking flight in Gazebo Harmonic with fully synchronized TF tree rendering in RViz2.</em>
+  <img src="assets/full_swarm_all_robots.jpg" width="800" />
+  <br><em>Complete physical heterogeneous swarm: Central quadrotor aerial platform flanked by the dual AlphaBot2-Ar ground nodes.</em>
 </p>
 
-### Simulation Terminal Logs
+### 2. Aerial Node v1 — Physical Assembly & Avionics
 
 <p align="center">
-  <img src="assets/simulation_terminal_logs.png" width="800" />
-  <br><em>Backend ROS 2 launch logs confirming Gazebo bridge initialization, swarm role allocation, and ARMED → TAKEOFF phase transitions.</em>
-</p>
-
-### 1. Hardware Base (Sentinel Ground Node)
-
-<p align="center">
-  <img src="assets/IMG20260917142633.jpg" width="400" />
-  <br><em>Top view: Sentinel Ground Node hardware base with serial bridge.</em>
+  <img src="assets/drone_top_view.jpg" width="390" />
+  <img src="assets/drone_side_profile.jpg" width="390" />
+  <br><em>Left: Assembled quadrotor top view showing MicoAir H743 V2 FC, ESC wiring harness, and 4S LiPo mount. Right: Profile view showing landing legs, motor mountings, and companion computer bay.</em>
 </p>
 
 <p align="center">
-  <img src="assets/IMG20260917142717.jpg" width="400" />
-  <br><em>Bottom view: Motors, wheels, and dual 14500 Li-ion cell power supply.</em>
+  <img src="assets/drone_pi5_camera.jpg" width="390" />
+  <img src="assets/aerial_fc_esc_hardware.jpg" width="390" />
+  <br><em>Left: Underslung Raspberry Pi 5 companion computer and forward-facing vision camera. Right: High-power MicoAir H743 V2 STM32H743 flight controller and 4-in-1 ESC power distribution board.</em>
 </p>
 
-### 2. XBee Mesh Network Telemetry
+### 3. Integrated Ground Nodes (AlphaBot2-Ar)
+
+<p align="center">
+  <img src="assets/ground_bot_integrated.jpg" width="450" />
+  <br><em>Fully integrated AlphaBot2-Ar ground node equipped with Raspberry Pi 4B, tracking camera, and XBee-PRO S2C wireless mesh transceiver (aerial platform in testing background).</em>
+</p>
+
+<p align="center">
+  <img src="assets/IMG20260917142633.jpg" width="390" />
+  <img src="assets/IMG20260917142717.jpg" width="390" />
+  <br><em>Top view: Sentinel Ground Node hardware base with serial bridge. Bottom view: Motors, wheels, and dual 14500 Li-ion cell power supply.</em>
+</p>
+
+### 4. XBee Mesh Network Telemetry
 
 <p align="center">
   <img src="assets/IMG20260915115423.jpg" width="400" />
@@ -355,8 +368,8 @@ ssh -t -o StrictHostKeyChecking=no pi3@10.219.37.160 "source ~/drone_venv/bin/ac
 </p>
 
 <p align="center">
-  <img src="assets/IMG20260915124745.jpg" width="400" />
-  <img src="assets/IMG20260915124752.jpg" width="400" />
+  <img src="assets/IMG20260915124745.jpg" width="390" />
+  <img src="assets/IMG20260915124752.jpg" width="390" />
   <br><em>Testing bidirectional serial telemetry between nodes.</em>
 </p>
 
@@ -365,7 +378,7 @@ ssh -t -o StrictHostKeyChecking=no pi3@10.219.37.160 "source ~/drone_venv/bin/ac
   <br><em>Full telemetry loop test: Laptop transmitting to the Sentinel Ground Node.</em>
 </p>
 
-### 3. Multi-Node Swarm & Vision Testing (YOLO)
+### 5. Multi-Node Swarm & Vision Testing (YOLO)
 
 <p align="center">
   <img src="assets/IMG20260922160510.jpg" width="600" />
@@ -380,6 +393,20 @@ ssh -t -o StrictHostKeyChecking=no pi3@10.219.37.160 "source ~/drone_venv/bin/ac
 <p align="center">
   <img src="assets/swarm_negotiation_logs.png" width="800" />
   <br><em>Real-time swarm negotiation logs over XBee. The active node dynamically switches pursuit leadership between <code>[ self ]</code> and <code>[partner]</code> based on YOLO confidence, issuing <code>M,speed,dir,speed,dir</code> motor commands.</em>
+</p>
+
+### 6. Gazebo Harmonic & RViz2 Swarm Simulation
+
+<p align="center">
+  <img src="assets/gazebo_rviz_success.png" width="800" />
+  <br><em>Sentinel Swarm taking flight in Gazebo Harmonic with fully synchronized TF tree rendering in RViz2.</em>
+</p>
+
+### Simulation Terminal Logs
+
+<p align="center">
+  <img src="assets/simulation_terminal_logs.png" width="800" />
+  <br><em>Backend ROS 2 launch logs confirming Gazebo bridge initialization, swarm role allocation, and ARMED → TAKEOFF phase transitions.</em>
 </p>
 
 ---
