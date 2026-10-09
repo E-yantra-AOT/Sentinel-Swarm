@@ -3,7 +3,7 @@
 **Sentinel** is an **IoRT (Internet of Robotic Things)** and **Edge AI** swarm system engineered for GPS-denied disaster management. It deploys a decentralized, heterogeneous architecture pairing a quadrotor aerial node with two AlphaBot2-Ar ground robots, all coordinating over a self-healing **XBee RF mesh network**.
 
 <p align="center">
-  <img src="assets/full_swarm_all_robots.jpg" width="850" />
+  <img src="assets/full_swarm_all_robots.jpg" width="550" />
   <br><em><b>Physical Heterogeneous Swarm Fleet</b>: Central quadrotor aerial platform flanked by the dual AlphaBot2-Ar ground nodes.</em>
 </p>
 
@@ -329,15 +329,15 @@ ssh -t -o StrictHostKeyChecking=no pi3@10.219.37.160 "source ~/drone_venv/bin/ac
 ### 1. Physical Heterogeneous Swarm Fleet
 
 <p align="center">
-  <img src="assets/full_swarm_all_robots.jpg" width="800" />
+  <img src="assets/full_swarm_all_robots.jpg" width="500" />
   <br><em>Complete physical heterogeneous swarm: Central quadrotor aerial platform flanked by the dual AlphaBot2-Ar ground nodes.</em>
 </p>
 
 ### 2. Aerial Node v1 — Physical Assembly & Avionics
 
 <p align="center">
-  <img src="assets/drone_top_view.jpg" width="390" />
-  <img src="assets/drone_side_profile.jpg" width="390" />
+  <img src="assets/drone_top_view.jpg" width="350" />
+  <img src="assets/drone_side_profile.jpg" width="350" />
   <br><em>Left: Assembled quadrotor top view showing MicoAir H743 V2 FC, ESC wiring harness, and 4S LiPo mount. Right: Profile view showing landing legs, motor mountings, and companion computer bay.</em>
 </p>
 
